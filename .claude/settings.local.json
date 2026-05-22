@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(node --input-type=module --eval ' *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

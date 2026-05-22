@@ -1,0 +1,6 @@
+{
+  "name": "Linux AI Ops Studio",
+  "description": "Plataforma SaaS moderna para conectar de forma segura a servidores Linux mediante SSH y administrar el sistema operativo con agentes autónomos basados en OpenRouter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_OPENROUTER_API"]
+}
