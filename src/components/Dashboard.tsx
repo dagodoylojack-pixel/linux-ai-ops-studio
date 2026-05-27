@@ -76,15 +76,23 @@ export default function Dashboard({
     }
   };
 
-  // Handle systemd service actions
-  const handleServiceAction = async (serviceName: string, action: 'restart' | 'stop') => {
+  // Handle service actions — works on systemd, SysV init.d and OpenRC
+  const handleServiceAction = async (serviceName: string, action: 'restart' | 'stop', description = '') => {
     setActionLoading(`${action}-${serviceName}`);
     setDashboardError(null);
+    // Strip .service suffix for the `service` command and rc-service
+    const baseName = serviceName.replace(/\.service$/, '');
+    // Build the right command per init system detected from the service description
+    const cmd = description.startsWith('OpenRC')
+      ? `rc-service ${baseName} ${action}`
+      : description.startsWith('SysV')
+      ? `service ${baseName} ${action}`   // /etc/init.d wrapper, works on CentOS 6/7 SysV
+      : `systemctl ${action} ${serviceName}`;  // systemd default
     try {
-      await onExecuteCommand(`systemctl ${action} ${serviceName}`);
+      await onExecuteCommand(cmd);
       onRefresh();
     } catch (err: any) {
-      setDashboardError(`Error en systemctl (${action} ${serviceName}): ${err?.message || err}`);
+      setDashboardError(`Error al ejecutar (${action} ${serviceName}): ${err?.message || err}`);
       setTimeout(() => setDashboardError(null), 6000);
     } finally {
       setActionLoading(null);
@@ -112,6 +120,21 @@ export default function Dashboard({
     if (value > 65) return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
     return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
   };
+
+  // Zero out all metrics when the server is offline to avoid showing stale data
+  const isOffline = server.status !== 'online';
+  const cpu    = isOffline ? 0 : (server.cpuUsage  || 0);
+  const ram    = isOffline ? 0 : (server.ramUsage   || 0);
+  const ramTotal = server.ramTotal || 4;
+  const disk   = isOffline ? 0 : (server.diskUsage  || 0);
+  const temp   = isOffline ? 0 : (server.temperature || 0);
+  const rxKbs  = isOffline ? 0 : (server.rxRate || 0);
+  const txKbs  = isOffline ? 0 : (server.txRate || 0);
+  const totalKbs = rxKbs + txKbs;
+  const netDisplay = isOffline ? '0 KB/s'
+    : totalKbs >= 1024 ? `${(totalKbs / 1024).toFixed(1)} MB/s`
+    : `${totalKbs} KB/s`;
+  const hasTemp = !isOffline && server.temperature !== undefined && (server.temperature as number) >= 0;
 
   return (
     <div id="ops-dashboard" className="bg-brand-bg border border-brand-border rounded-xl p-4 flex flex-col h-full shadow-2xl">
@@ -169,9 +192,9 @@ export default function Dashboard({
         <div className="bg-brand-panel p-3.5">
           <div className="text-[10px] text-brand-text-muted uppercase mb-1 font-bold font-mono">CPU Load</div>
           <div className="flex items-center gap-2.5">
-            <span className="text-lg font-mono text-emerald-400 font-bold">{server.cpuUsage || 0}%</span>
+            <span className="text-lg font-mono text-emerald-400 font-bold">{cpu}%</span>
             <div className="flex-1 h-1.5 bg-brand-dark rounded-full overflow-hidden">
-              <div style={{ width: `${server.cpuUsage || 0}%` }} className="h-full bg-emerald-500 transition-all duration-300"></div>
+              <div style={{ width: `${cpu}%` }} className="h-full bg-emerald-500 transition-all duration-300"></div>
             </div>
           </div>
           <span className="text-[9px] text-brand-text-dim font-mono block mt-1 truncate max-w-[150px]">{server.cpuModel}</span>
@@ -181,21 +204,21 @@ export default function Dashboard({
         <div className="bg-brand-panel p-3.5">
           <div className="text-[10px] text-brand-text-muted uppercase mb-1 font-bold font-mono">RAM Usage</div>
           <div className="flex items-center gap-2.5">
-            <span className="text-lg font-mono text-amber-400 font-bold">{server.ramUsage || 0}<small className="text-[10px] ml-1 uppercase">GB</small></span>
+            <span className="text-lg font-mono text-amber-400 font-bold">{ram}<small className="text-[10px] ml-1 uppercase">GB</small></span>
             <div className="flex-1 h-1.5 bg-brand-dark rounded-full overflow-hidden">
-              <div style={{ width: `${Math.round(((server.ramUsage || 0) / (server.ramTotal || 16)) * 100)}%` }} className="h-full bg-amber-500 transition-all duration-300"></div>
+              <div style={{ width: `${Math.round((ram / (ramTotal || 1)) * 100)}%` }} className="h-full bg-amber-500 transition-all duration-300"></div>
             </div>
           </div>
-          <span className="text-[9px] text-brand-text-dim font-mono block mt-1">de {server.ramTotal || 16} GB totales</span>
+          <span className="text-[9px] text-brand-text-dim font-mono block mt-1">de {ramTotal} GB totales</span>
         </div>
 
         {/* Disk Panel */}
         <div className="bg-brand-panel p-3.5">
           <div className="text-[10px] text-brand-text-muted uppercase mb-1 font-bold font-mono">Disk Storage</div>
           <div className="flex items-center gap-2.5">
-            <span className="text-lg font-mono text-blue-400 font-bold">{server.diskUsage || 0}%</span>
+            <span className="text-lg font-mono text-blue-400 font-bold">{disk}%</span>
             <div className="flex-1 h-1.5 bg-brand-dark rounded-full overflow-hidden">
-              <div style={{ width: `${server.diskUsage || 0}%` }} className="h-full bg-blue-500 transition-all duration-300"></div>
+              <div style={{ width: `${disk}%` }} className="h-full bg-blue-500 transition-all duration-300"></div>
             </div>
           </div>
           <span className="text-[9px] text-brand-text-dim font-mono block mt-1">capacidad utilizada</span>
@@ -205,17 +228,17 @@ export default function Dashboard({
         <div className="bg-brand-panel p-3.5">
           <div className="text-[10px] text-brand-text-muted uppercase mb-1 font-bold font-mono">Network I/O</div>
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-mono text-blue-400 font-bold">1.2<small className="text-[10px] ml-1 uppercase">MB/s</small></span>
+            <span className="text-lg font-mono text-blue-400 font-bold">{netDisplay}</span>
             <div className="flex gap-0.5 items-end h-4 ml-auto">
-              <div className="w-1 bg-blue-500 h-[20%] animate-pulse"></div>
-              <div className="w-1 bg-blue-500 h-[40%]" style={{ animationDelay: '0.1s' }}></div>
-              <div className="w-1 bg-blue-500 h-[80%]" style={{ animationDelay: '0.2s' }}></div>
-              <div className="w-1 bg-blue-500 h-[50%]" style={{ animationDelay: '0.3s' }}></div>
+              <div className={`w-1 h-[20%] ${isOffline ? 'bg-zinc-700' : 'bg-blue-500 animate-pulse'}`}></div>
+              <div className={`w-1 h-[40%] ${isOffline ? 'bg-zinc-700' : 'bg-blue-500'}`}></div>
+              <div className={`w-1 h-[80%] ${isOffline ? 'bg-zinc-700' : 'bg-blue-500'}`}></div>
+              <div className={`w-1 h-[50%] ${isOffline ? 'bg-zinc-700' : 'bg-blue-500'}`}></div>
             </div>
           </div>
           <div className="flex justify-between items-center text-[9px] text-brand-text-dim font-mono mt-1">
-            <span>RX: {server.rxRate || 0} KB/s</span>
-            <span>TX: {server.txRate || 0} KB/s</span>
+            <span>RX: {rxKbs} KB/s</span>
+            <span>TX: {txKbs} KB/s</span>
           </div>
         </div>
 
@@ -223,10 +246,19 @@ export default function Dashboard({
         <div className="bg-brand-panel p-3.5">
           <div className="text-[10px] text-brand-text-muted uppercase mb-1 font-bold font-mono">Core Temp</div>
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-mono text-orange-400 font-bold">{server.temperature || 38}°C</span>
-            <span className="text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded font-mono ml-auto">NORMAL</span>
+            <span className={`text-lg font-mono font-bold ${hasTemp ? 'text-orange-400' : 'text-zinc-500'}`}>
+              {hasTemp ? `${temp}°C` : '—'}
+            </span>
+            {hasTemp && temp < 80 && (
+              <span className="text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded font-mono ml-auto">NORMAL</span>
+            )}
+            {hasTemp && temp >= 80 && (
+              <span className="text-[9px] text-red-400 bg-red-500/10 border border-red-500/20 px-1 py-0.2 rounded font-mono ml-auto">HIGH</span>
+            )}
           </div>
-          <span className="text-[9px] text-brand-text-dim font-mono block mt-1">● Thermal regulation active</span>
+          <span className="text-[9px] text-brand-text-dim font-mono block mt-1">
+            {isOffline ? '● Sin datos de telemetría' : hasTemp ? '● Thermal regulation active' : '● Sensor no disponible'}
+          </span>
         </div>
       </div>
 
@@ -235,7 +267,7 @@ export default function Dashboard({
         {[
           { id: 'resources', label: 'Monitor de Recursos' },
           { id: 'processes', label: `Procesos (${processes.length})` },
-          { id: 'services', label: `Servicios systemd (${services.length})` },
+          { id: 'services', label: `Servicios (${services.length})` },
           { id: 'docker', label: `Docker Containers (${dockerContainers.length})` },
         ].map((tab) => (
           <button
@@ -259,11 +291,11 @@ export default function Dashboard({
             {/* Visual metrics graphs */}
             <div className="bg-brand-panel border border-brand-border p-3.5 rounded">
               <h3 className="text-[10px] font-bold text-brand-text-muted uppercase tracking-widest font-mono mb-3">Live CPU Activity</h3>
-              <CPUUsageMeter value={server.cpuUsage || 0} />
+              <CPUUsageMeter value={cpu} />
             </div>
             <div className="bg-brand-panel border border-brand-border p-3.5 rounded">
               <h3 className="text-[10px] font-bold text-brand-text-muted uppercase tracking-widest font-mono mb-3">Memory Resource Commit</h3>
-              <RAMUsageMeter used={server.ramUsage || 1} total={server.ramTotal || 4} />
+              <RAMUsageMeter used={ram} total={ramTotal} />
             </div>
           </div>
         )}
@@ -326,19 +358,26 @@ export default function Dashboard({
                     <div>
                       <h4 className="text-xs font-bold text-zinc-200">{svc.name}</h4>
                       <p className="text-[10px] text-brand-text-muted mt-0.5 max-w-[180px] sm:max-w-[220px] truncate font-sans" title={svc.description}>
-                        {svc.description}
+                        {svc.description || '—'}
                       </p>
-                      <span className={`inline-block text-[9px] font-mono mt-1 px-1.5 py-0.5 rounded ${
-                        isRunning ? 'bg-emerald-950/50 text-emerald-400' : 'bg-brand-dark text-brand-text-muted'
-                      }`}>
-                        {svc.active} ({svc.sub})
-                      </span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`inline-block text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                          isRunning ? 'bg-emerald-950/50 text-emerald-400' : 'bg-brand-dark text-brand-text-muted'
+                        }`}>
+                          {svc.active} ({svc.sub})
+                        </span>
+                        {(svc.description === 'SysV' || svc.description === 'OpenRC') && (
+                          <span className="inline-block text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/40 text-amber-400 border border-amber-900/30">
+                            {svc.description}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex gap-1">
                     <button
-                      onClick={() => handleServiceAction(svc.name, 'restart')}
+                      onClick={() => handleServiceAction(svc.name, 'restart', svc.description)}
                       disabled={actionLoading !== null}
                       title="Reiniciar servicio"
                       className="p-1 px-2 text-[10px] bg-brand-item border border-brand-border hover:bg-brand-bar text-zinc-300 rounded cursor-pointer"
@@ -347,7 +386,7 @@ export default function Dashboard({
                     </button>
                     {isRunning ? (
                       <button
-                        onClick={() => handleServiceAction(svc.name, 'stop')}
+                        onClick={() => handleServiceAction(svc.name, 'stop', svc.description)}
                         disabled={actionLoading !== null}
                         title="Detener servicio"
                         className="p-1 px-2 text-[10px] bg-red-950/20 border border-red-900/40 text-red-500 hover:bg-red-950 rounded cursor-pointer"
@@ -356,7 +395,7 @@ export default function Dashboard({
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleServiceAction(svc.name, 'restart')}
+                        onClick={() => handleServiceAction(svc.name, 'restart', svc.description)}
                         disabled={actionLoading !== null}
                         title="Iniciar servicio"
                         className="p-1 px-2 text-[10px] bg-emerald-950/20 border border-emerald-900/40 text-emerald-400 hover:bg-emerald-950 rounded cursor-pointer"

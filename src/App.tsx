@@ -274,7 +274,29 @@ export default function App() {
     }
   };
 
-  // 6. Add raw new server
+  // 6. Connect / Disconnect individual server
+  const connectServer = async (serverId: string) => {
+    const res = await fetch(`/api/servers/${serverId}/connect`, { method: 'POST' });
+    if (!res.ok) return;
+    const updated = await res.json();
+    setServers((prev) => prev.map((s) => s.id === serverId ? { ...s, ...updated } : s));
+    if (selectedServer?.id === serverId) {
+      setSelectedServer((prev) => prev ? { ...prev, ...updated } : null);
+      if (updated.status === 'online') refreshActiveServerState();
+    }
+  };
+
+  const disconnectServer = async (serverId: string) => {
+    const res = await fetch(`/api/servers/${serverId}/disconnect`, { method: 'POST' });
+    if (!res.ok) return;
+    const updated = await res.json();
+    setServers((prev) => prev.map((s) => s.id === serverId ? { ...s, ...updated } : s));
+    if (selectedServer?.id === serverId) {
+      setSelectedServer((prev) => prev ? { ...prev, ...updated } : null);
+    }
+  };
+
+  // 7. Add raw new server
   const handleAddNewServerVault = async (srvData: Omit<ServerConnection, 'id' | 'status'>) => {
     const res = await fetch('/api/servers', {
       method: 'POST',
@@ -310,8 +332,9 @@ export default function App() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <h1 className="text-xs sm:text-sm font-bold text-zinc-50 font-display uppercase tracking-tight leading-none whitespace-nowrap">
-                Linux AI Ops Studio
+                Linux ASO
               </h1>
+              <span className="text-[10px] font-semibold text-zinc-400 hidden sm:inline whitespace-nowrap">by Daniel Godoy</span>
               <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 flex-shrink-0">
                 <Sparkles className="w-2.5 h-2.5" /> OpenRouter
               </span>
@@ -371,6 +394,8 @@ export default function App() {
             onSelectServer={(srv) => { setSelectedServer(srv); setMobileTab('dashboard'); }}
             onAddServer={handleAddNewServerVault}
             onDeleteServer={deleteServer}
+            onConnectServer={connectServer}
+            onDisconnectServer={disconnectServer}
             onCleanupUnusedServers={cleanupUnusedServers}
             loading={loadingServers}
           />

@@ -5,7 +5,10 @@
       "Bash(npx tsc *)",
       "Bash(node --input-type=module --eval ' *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npm install *)",
+      "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; $ts = Get-Date -Format \"yyyy-MM-dd HH:mm\"; git add -A; git commit -m \"checkpoint: linux-aso-v2 — $ts\")"
     ]
   }
 }

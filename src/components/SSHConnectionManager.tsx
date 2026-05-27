@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { ServerConnection } from '../types';
-import { Server, ShieldCheck, Plus, Trash2, Key, Check, AlertCircle, ServerOff } from 'lucide-react';
+import { Server, ShieldCheck, Plus, Trash2, Key, Check, AlertCircle, ServerOff, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SSHConnectionManagerProps {
@@ -14,6 +14,8 @@ interface SSHConnectionManagerProps {
   onSelectServer: (server: ServerConnection) => void;
   onAddServer: (serverData: Omit<ServerConnection, 'id' | 'status'>) => Promise<void>;
   onDeleteServer: (serverId: string) => Promise<void>;
+  onConnectServer: (serverId: string) => Promise<void>;
+  onDisconnectServer: (serverId: string) => Promise<void>;
   onCleanupUnusedServers: () => Promise<void>;
   loading: boolean;
 }
@@ -24,10 +26,13 @@ export default function SSHConnectionManager({
   onSelectServer,
   onAddServer,
   onDeleteServer,
+  onConnectServer,
+  onDisconnectServer,
   onCleanupUnusedServers,
   loading,
 }: SSHConnectionManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   
   // Form States
   const [name, setName] = useState('');
@@ -301,22 +306,64 @@ export default function SSHConnectionManager({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {isActive && (
-                        <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-mono">
+                    <div className="flex items-center gap-1.5">
+                      {isActive && serv.status === 'online' && (
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">
                           Activo
+                        </span>
+                      )}
+                      {isActive && serv.status === 'connecting' && (
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">
+                          Conectando
+                        </span>
+                      )}
+                      {isActive && serv.status === 'offline' && (
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 font-mono">
+                          Offline
                         </span>
                       )}
                       {serv.authType === 'privateKey' && (
                         <Key className="w-3.5 h-3.5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
                       )}
+
+                      {/* Connect / Disconnect button */}
+                      {busyId === serv.id ? (
+                        <span className="p-1 text-zinc-500">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        </span>
+                      ) : serv.status === 'online' ? (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setBusyId(serv.id);
+                            try { await onDisconnectServer(serv.id); } finally { setBusyId(null); }
+                          }}
+                          title="Desconectar"
+                          className="p-1 rounded border border-brand-border hover:border-amber-400 hover:text-amber-300 text-zinc-500 transition-colors cursor-pointer"
+                        >
+                          <WifiOff className="w-3 h-3" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setBusyId(serv.id);
+                            try { await onConnectServer(serv.id); } finally { setBusyId(null); }
+                          }}
+                          title="Conectar"
+                          className="p-1 rounded border border-brand-border hover:border-emerald-400 hover:text-emerald-300 text-zinc-500 transition-colors cursor-pointer"
+                        >
+                          <Wifi className="w-3 h-3" />
+                        </button>
+                      )}
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeleteServer(serv.id);
                         }}
                         title="Eliminar servidor"
-                        className="p-1 rounded border border-brand-border hover:border-red-400 hover:text-red-300 text-zinc-500 transition-colors"
+                        className="p-1 rounded border border-brand-border hover:border-red-400 hover:text-red-300 text-zinc-500 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>

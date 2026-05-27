@@ -10,6 +10,7 @@ import * as dotenv from 'dotenv';
 import { Client as SSH2Client } from 'ssh2';
 import fs from 'fs/promises';
 import crypto from 'crypto';
+import busboy from 'busboy';
 
 const ENV_PATH = path.resolve(process.cwd(), '.env');
 const envResult = dotenv.config({ path: ENV_PATH });
@@ -392,17 +393,39 @@ function runRealSSHCommand(
         ssh.end();
         return callback(err);
       }
-      stream
-        .on('close', (code: number) => {
-          ssh.end();
-          callback(null, { stdout, stderr, exitCode: code });
-        })
-        .on('data', (data: Buffer) => {
-          stdout += data.toString();
-        })
-        .stderr.on('data', (data: Buffer) => {
-          stderr += data.toString();
-        });
+
+      // Cap stdout at 500 KB to prevent large commands (cat bigfile) from hanging the app.
+      // When exceeded: truncate, close the SSH channel early, add a marker.
+      const STDOUT_LIMIT = 500 * 1024;
+      let truncated = false;
+      let resolved = false;
+
+      const done = (code: number) => {
+        if (resolved) return;
+        resolved = true;
+        ssh.end();
+        callback(null, { stdout, stderr, exitCode: code ?? 0 });
+      };
+
+      stream.on('close', (code: number) => done(code));
+      stream.on('data', (data: Buffer) => {
+        if (truncated) return;
+        stdout += data.toString();
+        if (stdout.length > STDOUT_LIMIT) {
+          truncated = true;
+          // Trim to last complete line within the limit
+          stdout = stdout.slice(0, STDOUT_LIMIT);
+          const lastNl = stdout.lastIndexOf('\n');
+          if (lastNl > 0) stdout = stdout.slice(0, lastNl);
+          stdout += '\n[OUTPUT_TRUNCATED]';
+          try { stream.destroy(); } catch {}
+          // stream.destroy() may not fire 'close' — resolve with a short delay as fallback
+          setTimeout(() => done(0), 300);
+        }
+      });
+      stream.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
     });
   });
 
@@ -414,7 +437,7 @@ function runRealSSHCommand(
     host: connection.host,
     port: connection.port,
     username: connection.username,
-    readyTimeout: 10000,
+    readyTimeout: 5000,
   };
 
   if (connection.authType === 'password') {
@@ -433,40 +456,71 @@ function runRealSSHCommand(
 // ---------------- REAL SERVER STATE FETCHING ----------------
 
 const stateCache: Record<string, { data: any; fetchedAt: number }> = {};
-const STATE_CACHE_TTL = 12000;
+const STATE_CACHE_TTL = 8000;
+
+// Per-server /proc/net/dev snapshots used to compute KB/s between polls (no sleep needed)
+const netSamples = new Map<string, { rx: number; tx: number; ts: number }>();
 
 async function fetchRealServerState(server: any) {
-  const run = (cmd: string) =>
-    runRealSSHCommandAsync(server, cmd).catch(() => ({ stdout: '', stderr: '', exitCode: 1 }));
+  // Single SSH connection with a batch script — avoids opening 12+ concurrent connections
+  // which can exceed MaxSessions/MaxStartups on the remote sshd and cause silent failures.
+  // CPU uses /proc/stat (universally reliable across all distros/versions).
+  const batchScript = [
+    "echo '<<CPU>>'",
+    "awk 'NR==1{t=0;for(i=2;i<=NF;i++)t+=$i;printf \"%.0f\\n\",(1-$5/t)*100}' /proc/stat 2>/dev/null || echo 0",
+    "echo '<<MEM>>'",
+    "free -m 2>/dev/null | awk '/Mem:/{print $2,$3}' || echo '0 0'",
+    "echo '<<DISK>>'",
+    "df -h / 2>/dev/null | awk 'NR==2{print $2,$3,$5}' || echo '0G 0G 0%'",
+    "echo '<<UPTIME>>'",
+    "uptime -p 2>/dev/null || uptime 2>/dev/null || echo ''",
+    "echo '<<PS>>'",
+    "ps aux --sort=-%cpu 2>/dev/null | head -21 || echo ''",
+    "echo '<<SVC>>'",
+    // Detection cascade: systemd → SysV /var/lock/subsys (CentOS/RHEL) → OpenRC (Alpine) → /var/run/*.pid (generic SysV)
+    // All branches emit: "name.service loaded active running <description>" for consistent parsing.
+    "_SD=$(systemctl list-units --type=service --state=running --no-pager --no-legend 2>/dev/null | head -30); if [ -n \"$_SD\" ]; then echo \"$_SD\"; elif [ -d /var/lock/subsys ] && [ -n \"$(ls -A /var/lock/subsys/ 2>/dev/null)\" ]; then ls /var/lock/subsys/ 2>/dev/null | head -30 | sed 's/$/.service loaded active running SysV/'; elif command -v rc-status >/dev/null 2>&1; then rc-status 2>/dev/null | awk '/ started /{print $1\".service loaded active running OpenRC\"}' | head -20; elif ls /var/run/*.pid >/dev/null 2>&1; then ls /var/run/*.pid 2>/dev/null | sed 's|.*/||;s|\\.pid$|.service loaded active running SysV|' | head -30; fi",
+    "echo '<<DOCKER>>'",
+    "docker ps -a --format '{{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo ''",
+    "echo '<<LOG>>'",
+    "journalctl -n 25 --no-pager -o short 2>/dev/null || tail -n 25 /var/log/syslog 2>/dev/null || tail -n 25 /var/log/messages 2>/dev/null || echo ''",
+    "echo '<<CRON>>'",
+    "crontab -l 2>/dev/null || echo ''",
+    "echo '<<OS>>'",
+    "grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d'\"' -f2 || echo 'Linux'",
+    "echo '<<TEMP>>'",
+    "T=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | awk '{s+=$1;c++}END{if(c>0)printf \"%.0f\",s/c/1000}'); if [ -n \"$T\" ]; then echo \"$T\"; else sensors 2>/dev/null | awk '/^Core|^Package/{for(i=1;i<=NF;i++) if($i~/^\\+[0-9]/) {gsub(/[^0-9.]/,\"\",$i); printf \"%.0f\\n\",$i; exit}}' || echo ''; fi",
+    "echo '<<NETDEV>>'",
+    "awk 'NR>2 && !/lo:/{gsub(/:/, \"\", $1); print $1, $2, $10; exit}' /proc/net/dev 2>/dev/null || echo '- 0 0'",
+    "echo '<<USERS>>'",
+    "who 2>/dev/null | awk '{print $1}' | sort -u | head -5 || echo ''",
+    "echo '<<END>>'",
+  ].join('; ');
 
-  const [cpuRes, memRes, diskRes, uptimeRes, psRes, svcRes, dockerRes, logRes, cronRes, osRes, tempRes, usersRes] =
-    await Promise.all([
-      run("top -bn1 | grep '%Cpu\\|Cpu(s)' | awk '{for(i=1;i<=NF;i++) if($i~/^[0-9]/ && $(i-1)~/id/) print 100-$i}' | head -1"),
-      run("free -m | awk '/Mem:/{print $2,$3}'"),
-      run("df -h / | awk 'NR==2{print $2,$3,$5}'"),
-      run('uptime -p 2>/dev/null || uptime'),
-      run('ps aux --sort=-%cpu | head -21'),
-      run('systemctl list-units --type=service --state=running --no-pager --no-legend 2>/dev/null | head -30'),
-      run("docker ps -a --format '{{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null"),
-      run('journalctl -n 25 --no-pager -o short 2>/dev/null || tail -n 25 /var/log/syslog 2>/dev/null || tail -n 25 /var/log/messages 2>/dev/null'),
-      run('crontab -l 2>/dev/null'),
-      run("cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'\"' -f2"),
-      run("cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\",$1/1000}'"),
-      run("who | awk '{print $1}' | sort -u | head -5"),
-    ]);
+  // This throws if SSH is unreachable — caught by the state endpoint which marks server offline
+  const result = await runRealSSHCommandAsync(server, batchScript);
+  const out = result.stdout;
 
-  const cpuUsage = Math.min(100, Math.max(0, parseFloat(cpuRes.stdout.trim()) || 0));
+  function sec(name: string): string {
+    const marker = `<<${name}>>\n`;
+    const start = out.indexOf(marker);
+    if (start === -1) return '';
+    const from = start + marker.length;
+    const next = out.indexOf('<<', from);
+    return (next === -1 ? out.slice(from) : out.slice(from, next)).trim();
+  }
 
-  const [ramTotalMb, ramUsedMb] = memRes.stdout.trim().split(' ').map(Number);
+  const cpuUsage = Math.min(100, Math.max(0, parseFloat(sec('CPU')) || 0));
+
+  const [ramTotalMb, ramUsedMb] = sec('MEM').split(' ').map(Number);
   const ramTotal = parseFloat(((ramTotalMb || 0) / 1024).toFixed(1));
   const ramUsage = parseFloat(((ramUsedMb || 0) / 1024).toFixed(1));
 
-  const diskParts = diskRes.stdout.trim().split(' ');
+  const diskParts = sec('DISK').split(' ');
   const diskTotal = parseFloat(diskParts[0]) || 0;
   const diskUsagePct = parseFloat((diskParts[2] || '0%').replace('%', '')) || 0;
 
-  const processes = psRes.stdout
-    .trim()
+  const processes = sec('PS')
     .split('\n')
     .slice(1)
     .map((line) => {
@@ -480,8 +534,7 @@ async function fetchRealServerState(server: any) {
     })
     .filter((p) => p.pid > 0);
 
-  const services = svcRes.stdout
-    .trim()
+  const services = sec('SVC')
     .split('\n')
     .filter(Boolean)
     .map((line) => {
@@ -493,18 +546,19 @@ async function fetchRealServerState(server: any) {
     })
     .filter((s) => s.name.endsWith('.service'));
 
-  const dockerContainers = dockerRes.stdout
-    .trim()
+  const dockerContainers = sec('DOCKER')
     .split('\n')
     .filter(Boolean)
-    .map((line) => {
-      const [id = '', name = '', image = '', status = '', ports = ''] = line.split('\t');
-      return { id, name, image, command: '', created: '', status, ports, cpu: 0, mem: '—' };
-    })
-    .filter((c) => c.id);
+    .map((line, i) => {
+      const p = line.split('\t');
+      return {
+        id: p[0]?.trim() || `dc${i}`, name: p[1]?.trim() || '',
+        image: p[2]?.trim() || '', status: p[3]?.trim() || '',
+        ports: p[4]?.trim() || '', cpu: 0, mem: '—', command: '', created: '',
+      };
+    });
 
-  const logs = logRes.stdout
-    .trim()
+  const logs = sec('LOG')
     .split('\n')
     .filter(Boolean)
     .map((line, i) => {
@@ -514,14 +568,33 @@ async function fetchRealServerState(server: any) {
       return { id: `log-${i}`, timestamp: new Date().toISOString(), service: 'system', level, message: line.slice(0, 300) };
     });
 
-  const cronJobs = cronRes.stdout
-    .trim()
+  const cronJobs = sec('CRON')
     .split('\n')
     .filter((l) => l && !l.startsWith('#'))
     .map((line, i) => {
       const p = line.split(/\s+/);
       return { id: `c${i}`, schedule: p.slice(0, 5).join(' '), command: p.slice(5).join(' '), description: `Cron ${i + 1}`, active: true };
     });
+
+  // Network rate — compare current /proc/net/dev snapshot with previous poll
+  const netdevLine = sec('NETDEV').split('\n').filter(Boolean)[0] || '- 0 0';
+  const [, rxBytesStr, txBytesStr] = netdevLine.trim().split(/\s+/);
+  const rxBytes = parseInt(rxBytesStr) || 0;
+  const txBytes = parseInt(txBytesStr) || 0;
+  const now = Date.now();
+  const prev = netSamples.get(server.id);
+  let rxRate = 0;
+  let txRate = 0;
+  if (prev && prev.rx > 0 && now > prev.ts) {
+    const elapsed = (now - prev.ts) / 1000;
+    rxRate = Math.max(0, Math.round((rxBytes - prev.rx) / elapsed / 1024));
+    txRate = Math.max(0, Math.round((txBytes - prev.tx) / elapsed / 1024));
+  }
+  netSamples.set(server.id, { rx: rxBytes, tx: txBytes, ts: now });
+
+  // Temperature — empty string means no sensor available (VM/container)
+  const tempStr = sec('TEMP');
+  const temperature = tempStr ? (parseInt(tempStr) || 0) : -1;
 
   const updatedServer = {
     ...server,
@@ -531,10 +604,12 @@ async function fetchRealServerState(server: any) {
     ramTotal,
     diskUsage: diskUsagePct,
     diskTotal,
-    uptime: uptimeRes.stdout.trim() || server.uptime || '—',
-    osName: osRes.stdout.trim() || server.osName || 'Linux',
-    temperature: parseInt(tempRes.stdout.trim()) || 0,
-    usersConnected: usersRes.stdout.trim().split('\n').filter(Boolean),
+    uptime: sec('UPTIME') || server.uptime || '—',
+    osName: sec('OS') || server.osName || 'Linux',
+    temperature,
+    rxRate,
+    txRate,
+    usersConnected: sec('USERS').split('\n').filter(Boolean),
   };
 
   return { server: updatedServer, processes, services, dockerContainers, logs, cronJobs };
@@ -608,6 +683,34 @@ app.post('/api/servers/cleanup', async (req, res) => {
   }
 });
 
+// Connect a specific server: verify SSH and update status
+app.post('/api/servers/:id/connect', async (req, res) => {
+  const id = req.params.id;
+  const idx = db.connections.findIndex((c) => c.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Server not found.' });
+
+  db.connections[idx].status = 'connecting';
+  const status = await verifyServerConnection(db.connections[idx]);
+  db.connections[idx].status = status as 'online' | 'offline' | 'connecting';
+
+  // Invalidate cache so next state poll fetches fresh data
+  delete stateCache[id];
+
+  res.json(db.connections[idx]);
+});
+
+// Disconnect a specific server: mark offline and clear cache
+app.post('/api/servers/:id/disconnect', (req, res) => {
+  const id = req.params.id;
+  const idx = db.connections.findIndex((c) => c.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Server not found.' });
+
+  db.connections[idx].status = 'offline';
+  delete stateCache[id];
+
+  res.json(db.connections[idx]);
+});
+
 app.post('/api/servers', async (req, res) => {
   const { name, host, port, username, authType, password, privateKey } = req.body;
   
@@ -671,12 +774,15 @@ app.get('/api/servers/:id/state', async (req, res) => {
     stateCache[id] = { data: responseData, fetchedAt: Date.now() };
     return res.json(responseData);
   } catch (err: any) {
+    console.warn(`State fetch failed for ${id} — marking offline:`, (err as any).message || err);
     const idx = db.connections.findIndex((c) => c.id === id);
     if (idx >= 0) db.connections[idx].status = 'offline';
-    return res.json({
+    const offlinePayload = {
       server: { ...serv, status: 'offline' }, processes: [], services: [], dockerContainers: [],
       files: db.files[id] || [], logs: [], cronJobs: [], securityAssets: db.securityAssets[id] || [],
-    });
+    };
+    stateCache[id] = { data: offlinePayload, fetchedAt: Date.now() };
+    return res.json(offlinePayload);
   }
 });
 
@@ -782,7 +888,7 @@ function withSFTP<T>(server: any, fn: (sftp: any) => Promise<T>): Promise<T> {
     ssh.on('error', (err: any) => { if (!settled) reject(err); });
 
     const cfg: any = {
-      host: server.host, port: server.port, username: server.username, readyTimeout: 10000,
+      host: server.host, port: server.port, username: server.username, readyTimeout: 5000,
     };
     if (server.authType === 'password') cfg.password = server.password;
     else cfg.privateKey = server.privateKey;
@@ -856,7 +962,7 @@ app.get('/api/servers/:id/sftp/read', async (req, res) => {
   }
 });
 
-// SFTP — download file as binary stream (browser download)
+// SFTP — download file as binary stream with Content-Length for progress
 app.get('/api/servers/:id/sftp/download', (req, res) => {
   const serv = db.connections.find((c) => c.id === req.params.id);
   if (!serv) return res.status(404).json({ error: 'Server not found.' });
@@ -875,16 +981,22 @@ app.get('/api/servers/:id/sftp/download', (req, res) => {
         if (!res.headersSent) res.status(500).json({ error: err.message });
         return;
       }
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Type', 'application/octet-stream');
-      const rs = sftp.createReadStream(remotePath);
-      rs.on('error', (streamErr: any) => {
-        ssh.end();
-        if (!res.headersSent) res.status(500).json({ error: streamErr.message });
-        else res.end();
+      // Stat first to set Content-Length so browser/client can track progress
+      sftp.stat(remotePath, (statErr: any, stats: any) => {
+        if (!statErr && stats?.size) {
+          res.setHeader('Content-Length', String(stats.size));
+        }
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        const rs = sftp.createReadStream(remotePath);
+        rs.on('error', (streamErr: any) => {
+          ssh.end();
+          if (!res.headersSent) res.status(500).json({ error: streamErr.message });
+          else res.end();
+        });
+        rs.on('close', () => ssh.end());
+        rs.pipe(res);
       });
-      rs.on('close', () => ssh.end());
-      rs.pipe(res);
     });
   });
 
@@ -893,7 +1005,7 @@ app.get('/api/servers/:id/sftp/download', (req, res) => {
   });
 
   const cfg: any = {
-    host: serv.host, port: serv.port, username: serv.username, readyTimeout: 10000,
+    host: serv.host, port: serv.port, username: serv.username, readyTimeout: 5000,
   };
   if (serv.authType === 'password') cfg.password = serv.password;
   else cfg.privateKey = serv.privateKey;
@@ -901,6 +1013,67 @@ app.get('/api/servers/:id/sftp/download', (req, res) => {
   try { ssh.connect(cfg); } catch (e: any) {
     if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
   }
+});
+
+// SFTP — streaming upload via multipart/form-data (busboy), no base64 overhead
+app.post('/api/servers/:id/sftp/upload-stream', (req, res) => {
+  const serv = db.connections.find((c) => c.id === req.params.id);
+  if (!serv) return res.status(404).json({ error: 'Server not found.' });
+  if (!serv.password && !serv.privateKey) return res.status(400).json({ error: 'No credentials configured.' });
+
+  const remotePath = (req.query.path as string) || '/';
+
+  const bb = busboy({ headers: req.headers });
+  let responded = false;
+
+  bb.on('file', (_field: string, fileStream: any, info: any) => {
+    const filename = info.filename || 'upload';
+    const targetPath = (remotePath === '/' ? '' : remotePath) + '/' + filename;
+
+    const ssh = new SSH2Client();
+    let settled = false;
+
+    ssh.on('ready', () => {
+      ssh.sftp((sftpErr: any, sftp: any) => {
+        if (sftpErr) {
+          ssh.end();
+          fileStream.resume();
+          if (!responded) { responded = true; res.status(500).json({ error: sftpErr.message }); }
+          return;
+        }
+        const ws = sftp.createWriteStream(targetPath);
+        ws.on('close', () => {
+          settled = true;
+          ssh.end();
+          if (!responded) { responded = true; res.json({ success: true, path: targetPath, filename }); }
+        });
+        ws.on('error', (wsErr: any) => {
+          settled = true;
+          ssh.end();
+          fileStream.resume();
+          if (!responded) { responded = true; res.status(500).json({ error: wsErr.message }); }
+        });
+        fileStream.pipe(ws);
+      });
+    });
+
+    ssh.on('error', (err: any) => {
+      if (!settled && !responded) { responded = true; fileStream.resume(); res.status(500).json({ error: err.message }); }
+    });
+
+    const cfg: any = { host: serv.host, port: serv.port, username: serv.username, readyTimeout: 5000 };
+    if (serv.authType === 'password') cfg.password = serv.password;
+    else cfg.privateKey = serv.privateKey;
+    try { ssh.connect(cfg); } catch (e: any) {
+      if (!responded) { responded = true; res.status(500).json({ error: (e as Error).message }); }
+    }
+  });
+
+  bb.on('error', (err: any) => {
+    if (!responded) { responded = true; res.status(500).json({ error: err.message }); }
+  });
+
+  req.pipe(bb);
 });
 
 // SFTP — write/overwrite file from editor (text)
@@ -925,32 +1098,6 @@ app.post('/api/servers/:id/sftp/write', async (req, res) => {
   }
 });
 
-// SFTP — upload file from browser (base64 encoded binary)
-app.post('/api/servers/:id/sftp/upload', async (req, res) => {
-  const serv = db.connections.find((c) => c.id === req.params.id);
-  if (!serv) return res.status(404).json({ error: 'Server not found.' });
-  if (!serv.password && !serv.privateKey) return res.status(400).json({ error: 'No credentials configured.' });
-
-  const { path: remotePath, content, filename } = req.body;
-  if (!remotePath || !content || !filename) {
-    return res.status(400).json({ error: 'path, content, and filename are required.' });
-  }
-
-  const buf = Buffer.from(content, 'base64');
-  const targetPath = (remotePath === '/' ? '' : remotePath) + '/' + filename;
-
-  try {
-    await withSFTP(serv, (sftp) => new Promise<void>((resolve, reject) => {
-      const ws = sftp.createWriteStream(targetPath);
-      ws.on('close', () => resolve());
-      ws.on('error', (e: any) => reject(e));
-      ws.end(buf);
-    }));
-    res.json({ success: true, path: targetPath });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Get Audit Logs
 app.get('/api/audits', (req, res) => {
