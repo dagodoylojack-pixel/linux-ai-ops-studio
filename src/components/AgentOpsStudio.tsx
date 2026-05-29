@@ -110,7 +110,7 @@ interface AgentOpsStudioProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AgentOpsStudio({ server, onExecuteCommand, onRefreshTelemetry }: AgentOpsStudioProps) {
-  const [activeRole, setActiveRole]       = useState<AgentRole>('SysAdmin');
+  const [activeRole, setActiveRole]       = useState<AgentRole | null>(null);
   const [pendingRole, setPendingRole]     = useState<typeof AGENT_LIST[0] | null>(null);
   const [controlMode, setControlMode]     = useState<AIControlMode>('semi-autonomous');
   const [prompt, setPrompt]               = useState('');
@@ -263,7 +263,7 @@ export default function AgentOpsStudio({ server, onExecuteCommand, onRefreshTele
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 serverId: serverRef.current?.id,
-                role: activeRole,
+                role: activeRole ?? 'SysAdmin',
                 prompt: `El comando "${steps[i].command}" falló con el error: "${res.stderr || res.stdout}". El objetivo es: "${steps[i].title} — ${steps[i].description}". Proporciona un comando alternativo que logre el mismo objetivo sin este error.`,
                 controlMode: 'fully-autonomous',
               }),
@@ -334,7 +334,7 @@ export default function AgentOpsStudio({ server, onExecuteCommand, onRefreshTele
       const response = await fetch('/api/openrouter/run-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverId: server.id, role: activeRole, prompt: textToSend, controlMode }),
+        body: JSON.stringify({ serverId: server.id, role: activeRole ?? 'SysAdmin', prompt: textToSend, controlMode }),
       });
 
       const data = await response.json();
@@ -564,7 +564,10 @@ export default function AgentOpsStudio({ server, onExecuteCommand, onRefreshTele
       {/* ── Active agent + clear ── */}
       <div className="flex items-center justify-between gap-2 py-2 flex-shrink-0">
         <div className="p-2 bg-[#050505]/30 border border-brand-border text-[10px] text-brand-text-muted font-sans rounded flex-1 min-w-0">
-          <strong>Rol activo:</strong> {AGENT_LIST.find(a => a.role === activeRole)?.desc}
+          {activeRole
+            ? <><strong>Rol activo:</strong> {AGENT_LIST.find(a => a.role === activeRole)?.desc}</>
+            : <span className="text-zinc-600">Selecciona un agente arriba para comenzar.</span>
+          }
         </div>
         <button
           onClick={handleClearChat}

@@ -22,6 +22,8 @@ import {
   X,
   Trash2,
   Shield,
+  Copy,
+  Check,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
@@ -184,6 +186,7 @@ export default function IntelligenceCenter({
   const [aiAnalyzing, setAiAnalyzing]       = useState(false);
   const [aiHardeningAnalysis, setAiHardeningAnalysis] = useState<string | null>(null);
   const [expandedPolicy, setExpandedPolicy] = useState<string | null>(null);
+  const [copiedCmd, setCopiedCmd]           = useState<string | null>(null);
 
   // SFTP browser
   const [sftpPath, setSftpPath] = useState<string>('/');
@@ -515,6 +518,32 @@ export default function IntelligenceCenter({
   };
 
   // ── Hardening scan ────────────────────────────────────────────────────────
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for non-HTTPS or restricted contexts
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopiedCmd(text);
+    setTimeout(() => setCopiedCmd(c => c === text ? null : c), 2000);
+  };
+
+  const clearHardeningScan = () => {
+    setScanResult(null);
+    setAiHardeningAnalysis(null);
+    setScanError(null);
+    setExpandedPolicy(null);
+    setCopiedCmd(null);
+  };
 
   const runHardeningScan = async () => {
     if (!serverRef.current) return;
@@ -1221,14 +1250,23 @@ export default function IntelligenceCenter({
                 {scanLoading ? 'Escaneando...' : 'Hardening Scan'}
               </button>
               {scanResult && !scanLoading && (
-                <button
-                  onClick={runAIHardeningAnalysis}
-                  disabled={aiAnalyzing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-bar border border-brand-border hover:bg-[#111] disabled:opacity-50 text-zinc-300 text-xs font-bold rounded cursor-pointer transition-colors"
-                >
-                  <Cpu className="w-3.5 h-3.5" />
-                  {aiAnalyzing ? 'Analizando...' : 'Analizar con IA'}
-                </button>
+                <>
+                  <button
+                    onClick={runAIHardeningAnalysis}
+                    disabled={aiAnalyzing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-bar border border-brand-border hover:bg-[#111] disabled:opacity-50 text-zinc-300 text-xs font-bold rounded cursor-pointer transition-colors"
+                  >
+                    <Cpu className="w-3.5 h-3.5" />
+                    {aiAnalyzing ? 'Analizando...' : 'Analizar con IA'}
+                  </button>
+                  <button
+                    onClick={clearHardeningScan}
+                    title="Limpiar informe de hardening"
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-brand-dark border border-brand-border text-zinc-500 hover:text-zinc-200 hover:border-zinc-600 text-xs rounded cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Limpiar
+                  </button>
+                </>
               )}
               <div className="flex-1" />
               <button
@@ -1414,11 +1452,35 @@ export default function IntelligenceCenter({
 
                                     {/* Remediation */}
                                     {policy.recommendation.command && (
-                                      <div className="bg-[#050505] border border-emerald-900/30 rounded p-2">
-                                        <p className="text-[8px] text-emerald-700 uppercase tracking-widest font-mono mb-1.5">Remediación</p>
-                                        <pre className="text-[10px] text-emerald-300 font-mono whitespace-pre-wrap break-all">$ {policy.recommendation.command}</pre>
+                                      <div className="bg-[#050505] border border-emerald-900/30 rounded p-2 space-y-1">
+                                        <p className="text-[8px] text-emerald-700 uppercase tracking-widest font-mono">Remediación</p>
+                                        {/* Main command */}
+                                        <div className="flex items-start gap-1.5">
+                                          <pre className="text-[10px] text-emerald-300 font-mono whitespace-pre-wrap break-all flex-1">$ {policy.recommendation.command}</pre>
+                                          <button
+                                            onClick={() => copyToClipboard(policy.recommendation.command)}
+                                            title="Copiar al portapapeles"
+                                            className="flex-shrink-0 p-1 rounded text-zinc-600 hover:text-emerald-400 hover:bg-emerald-950/30 transition-colors cursor-pointer"
+                                          >
+                                            {copiedCmd === policy.recommendation.command
+                                              ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                              : <Copy className="w-3.5 h-3.5" />}
+                                          </button>
+                                        </div>
+                                        {/* Restart command */}
                                         {policy.recommendation.restart && (
-                                          <pre className="text-[10px] text-emerald-300 font-mono mt-1">$ {policy.recommendation.restart}</pre>
+                                          <div className="flex items-start gap-1.5 border-t border-emerald-900/20 pt-1">
+                                            <pre className="text-[10px] text-emerald-300 font-mono flex-1">$ {policy.recommendation.restart}</pre>
+                                            <button
+                                              onClick={() => copyToClipboard(policy.recommendation.restart!)}
+                                              title="Copiar al portapapeles"
+                                              className="flex-shrink-0 p-1 rounded text-zinc-600 hover:text-emerald-400 hover:bg-emerald-950/30 transition-colors cursor-pointer"
+                                            >
+                                              {copiedCmd === policy.recommendation.restart
+                                                ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                                : <Copy className="w-3.5 h-3.5" />}
+                                            </button>
+                                          </div>
                                         )}
                                       </div>
                                     )}
