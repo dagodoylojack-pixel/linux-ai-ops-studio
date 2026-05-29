@@ -1284,6 +1284,511 @@ Por favor, analiza la situación, provee un diagnóstico detallado, genera los c
   }
 });
 
+// ---------------- HARDENING / SECURITY SCAN ----------------
+
+/** One-shot bash script — outputs KEY=VALUE lines, runs in a single SSH exec. */
+const HARDENING_SCAN_SCRIPT = `
+SSH_ROOT=$(grep -E "^PermitRootLogin" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1);
+SSH_PASSAUTH=$(grep -E "^PasswordAuthentication" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1);
+SSH_IDLE=$(grep -E "^ClientAliveInterval" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1);
+SSH_MAXAUTH=$(grep -E "^MaxAuthTries" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1);
+SSH_EMPTYPWD=$(grep -E "^PermitEmptyPasswords" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1);
+SSH_X11=$(grep -E "^X11Forwarding" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1);
+FW_UFW=$(ufw status 2>/dev/null | head -1 | grep -c "active" || echo 0);
+FW_FWD=$(systemctl is-active firewalld 2>/dev/null | grep -c "^active$" || echo 0);
+FW_IPT=$(iptables -L INPUT -n 2>/dev/null | grep -cE "DROP|REJECT" || echo 0);
+OPEN_PORTS=$(ss -tlnp 2>/dev/null | grep LISTEN | awk '{print $4}' | sort -u | tr '\\n' ',' | sed 's/,$//');
+ASLR=$(cat /proc/sys/kernel/randomize_va_space 2>/dev/null || echo "");
+SELINUX=$(getenforce 2>/dev/null || echo "Disabled");
+APPARMOR=$(aa-status 2>/dev/null | head -1 | grep -c "loaded" 2>/dev/null || echo 0);
+IPFORWARD=$(sysctl -n net.ipv4.ip_forward 2>/dev/null || echo "");
+SUID_DUMP=$(sysctl -n fs.suid_dumpable 2>/dev/null || echo "");
+UID0=$(awk -F: '\$3==0{printf "%s,",\$1}' /etc/passwd 2>/dev/null | sed 's/,$//');
+SUDO_NOPWD=$(grep -rh "NOPASSWD" /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v "^#" | wc -l | tr -d ' ' || echo 0);
+EMPTY_PWD=$(awk -F: '(\$2==""||(\$2!~/^[!*]/&&length(\$2)<13))&&\$1!="root"{printf "%s,",\$1}' /etc/shadow 2>/dev/null | sed 's/,$//' || echo "");
+WORLD_WRITE=$(find /etc /usr/bin /usr/sbin /bin /sbin -xdev -maxdepth 4 -type f -perm -o+w 2>/dev/null | head -5 | tr '\\n' ',' | sed 's/,$//');
+SUID_FILES=$(find /usr/bin /usr/sbin /bin /sbin -xdev -user root -perm -4000 2>/dev/null | tr '\\n' ',' | sed 's/,$//');
+INSEC_SVCS=$(systemctl list-units --state=running --type=service 2>/dev/null | grep -oE "(telnet|vsftpd|rsh|rlogin|rexec|tftp|xinetd)[^ ]*" | tr '\\n' ',' | sed 's/,$//' || echo "");
+SRV_HOSTNAME=$(hostname 2>/dev/null);
+SRV_OS=$(cat /etc/os-release 2>/dev/null | grep "^PRETTY_NAME" | cut -d= -f2 | tr -d '"' | head -1 || uname -r);
+printf "SSH_ROOT=%s\\nSSH_PASSAUTH=%s\\nSSH_IDLE=%s\\nSSH_MAXAUTH=%s\\nSSH_EMPTYPWD=%s\\nSSH_X11=%s\\nFW_UFW=%s\\nFW_FWD=%s\\nFW_IPT=%s\\nOPEN_PORTS=%s\\nASLR=%s\\nSELINUX=%s\\nAPPARMOR=%s\\nIPFORWARD=%s\\nSUID_DUMP=%s\\nUID0=%s\\nSUDO_NOPWD=%s\\nEMPTY_PWD=%s\\nWORLD_WRITE=%s\\nSUID_FILES=%s\\nINSEC_SVCS=%s\\nSRV_HOSTNAME=%s\\nSRV_OS=%s\\n" "$SSH_ROOT" "$SSH_PASSAUTH" "$SSH_IDLE" "$SSH_MAXAUTH" "$SSH_EMPTYPWD" "$SSH_X11" "$FW_UFW" "$FW_FWD" "$FW_IPT" "$OPEN_PORTS" "$ASLR" "$SELINUX" "$APPARMOR" "$IPFORWARD" "$SUID_DUMP" "$UID0" "$SUDO_NOPWD" "$EMPTY_PWD" "$WORLD_WRITE" "$SUID_FILES" "$INSEC_SVCS" "$SRV_HOSTNAME" "$SRV_OS"
+`.replace(/\n\s*/g, ' ').trim();
+
+/** Parse KEY=VALUE lines from bash output into a plain object. */
+function parseScanOutput(raw: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const line of raw.split('\n')) {
+    const idx = line.indexOf('=');
+    if (idx < 1) continue;
+    const key = line.slice(0, idx).trim();
+    const val = line.slice(idx + 1).trim();
+    result[key] = val;
+  }
+  return result;
+}
+
+/** Build normalized HardeningPolicy objects from parsed scan data. */
+function buildHardeningPolicies(d: Record<string, string>): any[] {
+  const policies: any[] = [];
+  const get = (k: string) => (d[k] || '').trim();
+
+  // ── SSH Hardening ──────────────────────────────────────────────────────────
+  const sshRoot = get('SSH_ROOT').toLowerCase();
+  policies.push({
+    policy_id: 'SSH-001',
+    category: 'ssh_hardening',
+    title: 'Root login deshabilitado',
+    status: (!sshRoot || sshRoot === 'no' || sshRoot === 'prohibit-password') ? 'PASS' : 'FAIL',
+    severity: 'HIGH',
+    risk_score: (!sshRoot || sshRoot === 'no' || sshRoot === 'prohibit-password') ? 10 : 90,
+    description: sshRoot === 'yes'
+      ? 'El acceso root por SSH está habilitado — cualquier atacante puede intentar fuerza bruta directamente contra root.'
+      : 'Acceso root por SSH deshabilitado o restringido a clave.',
+    evidence: { PermitRootLogin: sshRoot || '(no definido — predeterminado: prohibit-password)', expected: 'no' },
+    recommendation: {
+      command: "sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
+      restart: 'systemctl restart sshd',
+    },
+    compliance: [{ framework: 'CIS', control: '5.2.8' }, { framework: 'NIST-800-53', control: 'AC-6' }],
+  });
+
+  const sshPass = get('SSH_PASSAUTH').toLowerCase();
+  policies.push({
+    policy_id: 'SSH-002',
+    category: 'ssh_hardening',
+    title: 'Autenticación por contraseña deshabilitada',
+    status: (sshPass === 'no') ? 'PASS' : 'FAIL',
+    severity: 'HIGH',
+    risk_score: (sshPass === 'no') ? 5 : 85,
+    description: sshPass !== 'no'
+      ? 'SSH permite autenticación por contraseña — vulnerable a ataques de diccionario y fuerza bruta.'
+      : 'Solo se permite autenticación por clave pública.',
+    evidence: { PasswordAuthentication: sshPass || 'yes (default)', expected: 'no' },
+    recommendation: {
+      command: "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
+      restart: 'systemctl restart sshd',
+    },
+    compliance: [{ framework: 'CIS', control: '5.2.13' }, { framework: 'NIST-800-53', control: 'IA-5' }],
+  });
+
+  const sshIdle = parseInt(get('SSH_IDLE') || '0', 10);
+  policies.push({
+    policy_id: 'SSH-003',
+    category: 'ssh_hardening',
+    title: 'Timeout de sesión inactiva configurado',
+    status: (sshIdle > 0 && sshIdle <= 300) ? 'PASS' : (sshIdle > 300 ? 'WARN' : 'FAIL'),
+    severity: 'MEDIUM',
+    risk_score: (sshIdle > 0 && sshIdle <= 300) ? 10 : (sshIdle > 300 ? 40 : 60),
+    description: sshIdle === 0
+      ? 'No hay timeout configurado — sesiones SSH inactivas permanecen abiertas indefinidamente.'
+      : `Timeout de sesión: ${sshIdle}s${sshIdle > 300 ? ' — valor mayor al recomendado (300s).' : '.'}`,
+    evidence: { ClientAliveInterval: sshIdle || 0, expected: '≤300' },
+    recommendation: {
+      command: "sed -i 's/^#*ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config && sed -i 's/^#*ClientAliveCountMax.*/ClientAliveCountMax 3/' /etc/ssh/sshd_config",
+      restart: 'systemctl restart sshd',
+    },
+    compliance: [{ framework: 'CIS', control: '5.2.14' }, { framework: 'NIST-800-53', control: 'SC-10' }],
+  });
+
+  const sshMax = parseInt(get('SSH_MAXAUTH') || '6', 10);
+  policies.push({
+    policy_id: 'SSH-004',
+    category: 'ssh_hardening',
+    title: 'Máximo de intentos de autenticación limitado',
+    status: (sshMax > 0 && sshMax <= 4) ? 'PASS' : 'FAIL',
+    severity: 'MEDIUM',
+    risk_score: (sshMax <= 4) ? 10 : 55,
+    description: sshMax > 4
+      ? `MaxAuthTries=${sshMax} — demasiados intentos antes de desconectar; facilita ataques de fuerza bruta.`
+      : `MaxAuthTries=${sshMax} — límite adecuado.`,
+    evidence: { MaxAuthTries: sshMax, expected: '≤4' },
+    recommendation: {
+      command: "sed -i 's/^#*MaxAuthTries.*/MaxAuthTries 4/' /etc/ssh/sshd_config",
+      restart: 'systemctl restart sshd',
+    },
+    compliance: [{ framework: 'CIS', control: '5.2.7' }],
+  });
+
+  const sshEmpty = get('SSH_EMPTYPWD').toLowerCase();
+  policies.push({
+    policy_id: 'SSH-005',
+    category: 'ssh_hardening',
+    title: 'Contraseñas vacías prohibidas en SSH',
+    status: (!sshEmpty || sshEmpty === 'no') ? 'PASS' : 'FAIL',
+    severity: 'CRITICAL',
+    risk_score: (!sshEmpty || sshEmpty === 'no') ? 5 : 100,
+    description: sshEmpty === 'yes'
+      ? 'SSH permite login con contraseña vacía — riesgo crítico de acceso no autorizado.'
+      : 'Contraseñas vacías bloqueadas en SSH.',
+    evidence: { PermitEmptyPasswords: sshEmpty || 'no (default)', expected: 'no' },
+    recommendation: {
+      command: "sed -i 's/^PermitEmptyPasswords yes/PermitEmptyPasswords no/' /etc/ssh/sshd_config",
+      restart: 'systemctl restart sshd',
+    },
+    compliance: [{ framework: 'CIS', control: '5.2.9' }, { framework: 'NIST-800-53', control: 'IA-5' }],
+  });
+
+  const sshX11 = get('SSH_X11').toLowerCase();
+  policies.push({
+    policy_id: 'SSH-006',
+    category: 'ssh_hardening',
+    title: 'X11 Forwarding deshabilitado',
+    status: (!sshX11 || sshX11 === 'no') ? 'PASS' : 'WARN',
+    severity: 'LOW',
+    risk_score: (!sshX11 || sshX11 === 'no') ? 5 : 30,
+    description: sshX11 === 'yes'
+      ? 'X11 Forwarding habilitado — puede ser explotado para ataques de captura de pantalla o inyección.'
+      : 'X11 Forwarding deshabilitado.',
+    evidence: { X11Forwarding: sshX11 || 'no (default)', expected: 'no' },
+    recommendation: {
+      command: "sed -i 's/^X11Forwarding yes/X11Forwarding no/' /etc/ssh/sshd_config",
+      restart: 'systemctl restart sshd',
+    },
+    compliance: [{ framework: 'CIS', control: '5.2.6' }],
+  });
+
+  // ── Firewall ───────────────────────────────────────────────────────────────
+  const fwUfw  = parseInt(get('FW_UFW')  || '0', 10);
+  const fwFwd  = parseInt(get('FW_FWD')  || '0', 10);
+  const fwIpt  = parseInt(get('FW_IPT')  || '0', 10);
+  const fwActive = fwUfw > 0 || fwFwd > 0 || fwIpt > 0;
+  policies.push({
+    policy_id: 'FW-001',
+    category: 'firewall',
+    title: 'Firewall activo',
+    status: fwActive ? 'PASS' : 'FAIL',
+    severity: 'HIGH',
+    risk_score: fwActive ? 10 : 88,
+    description: fwActive
+      ? `Firewall activo (UFW:${fwUfw > 0 ? 'sí' : 'no'}, firewalld:${fwFwd > 0 ? 'sí' : 'no'}, iptables rules:${fwIpt}).`
+      : 'Ningún firewall detectado activo — todos los puertos están expuestos sin filtrado.',
+    evidence: {
+      ufw_active: fwUfw > 0 ? 'yes' : 'no',
+      firewalld_active: fwFwd > 0 ? 'yes' : 'no',
+      iptables_drop_rules: fwIpt,
+    },
+    recommendation: {
+      command: 'systemctl enable --now firewalld',
+      restart: 'firewall-cmd --permanent --zone=public --add-service=ssh && firewall-cmd --reload',
+    },
+    compliance: [{ framework: 'CIS', control: '3.5.1' }, { framework: 'NIST-800-53', control: 'SC-7' }],
+  });
+
+  const openPorts = get('OPEN_PORTS');
+  const portList = openPorts ? openPorts.split(',').filter(Boolean) : [];
+  const dangerousPorts = portList.filter(p => {
+    const port = parseInt(p.split(':').pop() || '0', 10);
+    return [23, 21, 69, 512, 513, 514, 2049, 6000].includes(port);
+  });
+  policies.push({
+    policy_id: 'FW-002',
+    category: 'firewall',
+    title: 'Puertos inseguros expuestos',
+    status: dangerousPorts.length === 0 ? 'PASS' : 'FAIL',
+    severity: dangerousPorts.length > 0 ? 'HIGH' : 'LOW',
+    risk_score: dangerousPorts.length > 0 ? 80 : 5,
+    description: dangerousPorts.length > 0
+      ? `Puertos peligrosos escuchando: ${dangerousPorts.join(', ')} (Telnet/FTP/RPC/NFS/X11)`
+      : `${portList.length} puertos abiertos — sin puertos críticos detectados.`,
+    evidence: { listening_ports: portList.slice(0, 10).join(', ') || 'ninguno', dangerous_ports: dangerousPorts.join(', ') || 'ninguno' },
+    recommendation: {
+      command: 'ss -tlnp | grep LISTEN  # auditar y cerrar los no necesarios',
+    },
+    compliance: [{ framework: 'CIS', control: '3.5.2' }, { framework: 'PCI-DSS', control: '1.1.6' }],
+  });
+
+  // ── Kernel Hardening ───────────────────────────────────────────────────────
+  const aslr = parseInt(get('ASLR') || '0', 10);
+  policies.push({
+    policy_id: 'KERN-001',
+    category: 'kernel_hardening',
+    title: 'ASLR habilitado',
+    status: aslr === 2 ? 'PASS' : (aslr === 1 ? 'WARN' : 'FAIL'),
+    severity: aslr === 0 ? 'HIGH' : 'MEDIUM',
+    risk_score: aslr === 2 ? 10 : (aslr === 1 ? 35 : 75),
+    description: aslr === 2
+      ? 'ASLR completo habilitado (randomize_va_space=2).'
+      : aslr === 1
+      ? 'ASLR parcial (=1) — protección incompleta contra explotación de memoria.'
+      : 'ASLR deshabilitado (=0) — el sistema es vulnerable a ataques return-to-libc y heap spray.',
+    evidence: { randomize_va_space: aslr, expected: 2 },
+    recommendation: {
+      command: "echo 'kernel.randomize_va_space = 2' >> /etc/sysctl.conf && sysctl -w kernel.randomize_va_space=2",
+    },
+    compliance: [{ framework: 'CIS', control: '1.5.1' }, { framework: 'NIST-800-53', control: 'SI-16' }],
+  });
+
+  const selinux = get('SELINUX');
+  policies.push({
+    policy_id: 'KERN-002',
+    category: 'kernel_hardening',
+    title: 'SELinux/AppArmor activo',
+    status: (selinux === 'Enforcing') ? 'PASS' : (selinux === 'Permissive' ? 'WARN' : 'FAIL'),
+    severity: (selinux === 'Enforcing') ? 'LOW' : 'HIGH',
+    risk_score: selinux === 'Enforcing' ? 10 : (selinux === 'Permissive' ? 40 : 80),
+    description: selinux === 'Enforcing'
+      ? 'SELinux en modo Enforcing — políticas MAC activas.'
+      : selinux === 'Permissive'
+      ? 'SELinux en Permissive — registra pero no bloquea violaciones.'
+      : 'SELinux deshabilitado — sin Mandatory Access Control en el sistema.',
+    evidence: { selinux_status: selinux || 'Disabled', apparmor: parseInt(get('APPARMOR') || '0', 10) > 0 ? 'loaded' : 'inactive' },
+    recommendation: {
+      command: "sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config && setenforce 1",
+    },
+    compliance: [{ framework: 'CIS', control: '1.6.1' }, { framework: 'NIST-800-53', control: 'AC-3' }],
+  });
+
+  const ipForward = get('IPFORWARD');
+  policies.push({
+    policy_id: 'KERN-003',
+    category: 'kernel_hardening',
+    title: 'IP Forwarding deshabilitado (no-router)',
+    status: ipForward === '0' ? 'PASS' : (ipForward === '1' ? 'WARN' : 'INFO'),
+    severity: ipForward === '1' ? 'MEDIUM' : 'LOW',
+    risk_score: ipForward === '0' ? 5 : (ipForward === '1' ? 45 : 10),
+    description: ipForward === '1'
+      ? 'ip_forward=1 — el host puede enrutar tráfico de red. Peligroso en servidores que no son routers.'
+      : 'IP forwarding deshabilitado — configuración correcta para un servidor estándar.',
+    evidence: { net_ipv4_ip_forward: ipForward || 'unknown', expected: '0' },
+    recommendation: {
+      command: "sysctl -w net.ipv4.ip_forward=0 && echo 'net.ipv4.ip_forward = 0' >> /etc/sysctl.conf",
+    },
+    compliance: [{ framework: 'CIS', control: '3.1.1' }],
+  });
+
+  const suidDump = get('SUID_DUMP');
+  policies.push({
+    policy_id: 'KERN-004',
+    category: 'kernel_hardening',
+    title: 'Core dumps de binarios SUID deshabilitados',
+    status: suidDump === '0' ? 'PASS' : 'FAIL',
+    severity: 'MEDIUM',
+    risk_score: suidDump === '0' ? 5 : 55,
+    description: suidDump !== '0'
+      ? 'suid_dumpable!=0 — procesos SUID pueden generar core dumps con datos sensibles del proceso.'
+      : 'Core dumps de binarios SUID deshabilitados correctamente.',
+    evidence: { fs_suid_dumpable: suidDump || 'unknown', expected: '0' },
+    recommendation: {
+      command: "sysctl -w fs.suid_dumpable=0 && echo 'fs.suid_dumpable = 0' >> /etc/sysctl.conf",
+    },
+    compliance: [{ framework: 'CIS', control: '1.5.4' }],
+  });
+
+  // ── Usuarios y permisos ────────────────────────────────────────────────────
+  const uid0 = get('UID0');
+  const uid0List = uid0 ? uid0.split(',').filter(Boolean) : ['root'];
+  const extraUid0 = uid0List.filter(u => u !== 'root');
+  policies.push({
+    policy_id: 'USR-001',
+    category: 'users_permissions',
+    title: 'Sin usuarios extra con UID 0',
+    status: extraUid0.length === 0 ? 'PASS' : 'FAIL',
+    severity: 'CRITICAL',
+    risk_score: extraUid0.length === 0 ? 5 : 95,
+    description: extraUid0.length > 0
+      ? `Cuentas con UID 0 adicionales: ${extraUid0.join(', ')} — privilegios root sin ser root.`
+      : 'Solo root tiene UID 0.',
+    evidence: { uid0_accounts: uid0List.join(', '), extra_root_accounts: extraUid0.join(', ') || 'ninguno' },
+    recommendation: {
+      command: `# Para cada cuenta extra: usermod -u <nuevo_uid> <usuario>`,
+    },
+    compliance: [{ framework: 'CIS', control: '5.4.2' }, { framework: 'NIST-800-53', control: 'AC-6' }],
+  });
+
+  const sudoNoPwd = parseInt(get('SUDO_NOPWD') || '0', 10);
+  policies.push({
+    policy_id: 'USR-002',
+    category: 'users_permissions',
+    title: 'Sin reglas sudo NOPASSWD',
+    status: sudoNoPwd === 0 ? 'PASS' : 'FAIL',
+    severity: sudoNoPwd > 0 ? 'HIGH' : 'LOW',
+    risk_score: sudoNoPwd === 0 ? 5 : 85,
+    description: sudoNoPwd > 0
+      ? `${sudoNoPwd} regla(s) NOPASSWD en sudoers — permite escalada de privilegios sin contraseña.`
+      : 'Sin reglas NOPASSWD en sudoers.',
+    evidence: { nopasswd_entries: sudoNoPwd, expected: '0' },
+    recommendation: {
+      command: "grep -rn 'NOPASSWD' /etc/sudoers /etc/sudoers.d/  # revisar y eliminar entradas innecesarias",
+    },
+    compliance: [{ framework: 'CIS', control: '5.3.6' }, { framework: 'NIST-800-53', control: 'AC-6' }],
+  });
+
+  const emptyPwd = get('EMPTY_PWD');
+  const emptyList = emptyPwd ? emptyPwd.split(',').filter(Boolean) : [];
+  policies.push({
+    policy_id: 'USR-003',
+    category: 'users_permissions',
+    title: 'Sin cuentas con contraseña vacía',
+    status: emptyList.length === 0 ? 'PASS' : 'FAIL',
+    severity: 'CRITICAL',
+    risk_score: emptyList.length === 0 ? 5 : 100,
+    description: emptyList.length > 0
+      ? `Cuentas sin contraseña detectadas: ${emptyList.join(', ')} — acceso sin autenticación.`
+      : 'Todas las cuentas tienen contraseña configurada.',
+    evidence: { empty_password_accounts: emptyList.join(', ') || 'ninguno' },
+    recommendation: {
+      command: `passwd ${emptyList[0] || '<usuario>'}  # establecer contraseña segura`,
+    },
+    compliance: [{ framework: 'CIS', control: '5.4.1' }, { framework: 'NIST-800-53', control: 'IA-5' }],
+  });
+
+  // ── Integridad de archivos ─────────────────────────────────────────────────
+  const worldWrite = get('WORLD_WRITE');
+  const wwList = worldWrite ? worldWrite.split(',').filter(Boolean) : [];
+  policies.push({
+    policy_id: 'FILE-001',
+    category: 'file_integrity',
+    title: 'Sin archivos world-writable en directorios críticos',
+    status: wwList.length === 0 ? 'PASS' : 'FAIL',
+    severity: wwList.length > 0 ? 'HIGH' : 'LOW',
+    risk_score: wwList.length === 0 ? 5 : 80,
+    description: wwList.length > 0
+      ? `Archivos escribibles por cualquier usuario: ${wwList.slice(0, 3).join(', ')}${wwList.length > 3 ? ` (+${wwList.length - 3} más)` : ''}`
+      : 'Sin archivos world-writable en /etc, /usr/bin, /usr/sbin, /bin, /sbin.',
+    evidence: { world_writable_files: wwList.join(', ') || 'ninguno', count: wwList.length },
+    recommendation: {
+      command: "find /etc /usr/bin /usr/sbin /bin /sbin -type f -perm -o+w -exec chmod o-w {} \\;",
+    },
+    compliance: [{ framework: 'CIS', control: '6.1.10' }, { framework: 'NIST-800-53', control: 'CM-6' }],
+  });
+
+  const suidFiles = get('SUID_FILES');
+  const suidList = suidFiles ? suidFiles.split(',').filter(Boolean) : [];
+  const unexpectedSuid = suidList.filter(f => ![
+    '/usr/bin/passwd', '/usr/bin/sudo', '/usr/bin/su', '/usr/bin/newgrp',
+    '/usr/bin/gpasswd', '/usr/bin/chfn', '/usr/bin/chsh', '/usr/bin/mount',
+    '/usr/bin/umount', '/usr/bin/pkexec', '/bin/passwd', '/bin/sudo', '/bin/su',
+    '/bin/mount', '/bin/umount', '/sbin/mount', '/sbin/umount',
+  ].includes(f));
+  policies.push({
+    policy_id: 'FILE-002',
+    category: 'file_integrity',
+    title: 'Binarios SUID inesperados',
+    status: unexpectedSuid.length === 0 ? 'PASS' : 'WARN',
+    severity: unexpectedSuid.length > 0 ? 'MEDIUM' : 'LOW',
+    risk_score: unexpectedSuid.length === 0 ? 10 : 60,
+    description: unexpectedSuid.length > 0
+      ? `Binarios SUID fuera de la lista esperada: ${unexpectedSuid.slice(0, 3).join(', ')}`
+      : `${suidList.length} binarios SUID — todos dentro de la lista esperada.`,
+    evidence: { suid_binaries: suidList.length, unexpected: unexpectedSuid.join(', ') || 'ninguno' },
+    recommendation: {
+      command: `find /usr/bin /usr/sbin /bin /sbin -perm -4000 -ls  # auditar y: chmod u-s <binario>`,
+    },
+    compliance: [{ framework: 'CIS', control: '6.1.13' }],
+  });
+
+  // ── Servicios inseguros ────────────────────────────────────────────────────
+  const insecSvcs = get('INSEC_SVCS');
+  const insecList = insecSvcs ? insecSvcs.split(',').filter(Boolean) : [];
+  policies.push({
+    policy_id: 'SVC-001',
+    category: 'services',
+    title: 'Servicios inseguros inactivos (Telnet/FTP/RSH/TFTP)',
+    status: insecList.length === 0 ? 'PASS' : 'FAIL',
+    severity: insecList.length > 0 ? 'CRITICAL' : 'LOW',
+    risk_score: insecList.length === 0 ? 5 : 95,
+    description: insecList.length > 0
+      ? `Servicios inseguros activos: ${insecList.join(', ')} — transmiten datos en texto claro.`
+      : 'Sin servicios legacy inseguros activos.',
+    evidence: { running_insecure_services: insecList.join(', ') || 'ninguno' },
+    recommendation: {
+      command: `systemctl disable --now ${insecList[0] || 'telnet.service'}`,
+    },
+    compliance: [{ framework: 'CIS', control: '2.1' }, { framework: 'NIST-800-53', control: 'CM-7' }],
+  });
+
+  return policies;
+}
+
+/** Calculate global risk score: start at 100, deduct by severity+status. */
+function calcHardeningScore(policies: any[]): number {
+  let score = 100;
+  for (const p of policies) {
+    if (p.status === 'PASS' || p.status === 'INFO') continue;
+    const deduct = p.status === 'FAIL'
+      ? ({ CRITICAL: 15, HIGH: 10, MEDIUM: 5, LOW: 2 }[p.severity as string] ?? 3)
+      : p.status === 'WARN'
+      ? ({ CRITICAL: 6, HIGH: 4, MEDIUM: 2, LOW: 1 }[p.severity as string] ?? 1)
+      : 0;
+    score -= deduct;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
+/** Simulated scan result for demo servers without credentials. */
+function generateSimulatedScan(serverName: string): any {
+  const policies = [
+    { policy_id: 'SSH-001', category: 'ssh_hardening', title: 'Root login deshabilitado', status: 'FAIL', severity: 'HIGH', risk_score: 90, description: 'El acceso root por SSH está habilitado.', evidence: { PermitRootLogin: 'yes', expected: 'no' }, recommendation: { command: "sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config", restart: 'systemctl restart sshd' }, compliance: [{ framework: 'CIS', control: '5.2.8' }, { framework: 'NIST-800-53', control: 'AC-6' }] },
+    { policy_id: 'SSH-002', category: 'ssh_hardening', title: 'Autenticación por contraseña deshabilitada', status: 'FAIL', severity: 'HIGH', risk_score: 85, description: 'SSH permite autenticación por contraseña.', evidence: { PasswordAuthentication: 'yes', expected: 'no' }, recommendation: { command: "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config", restart: 'systemctl restart sshd' }, compliance: [{ framework: 'CIS', control: '5.2.13' }] },
+    { policy_id: 'SSH-003', category: 'ssh_hardening', title: 'Timeout de sesión inactiva configurado', status: 'PASS', severity: 'MEDIUM', risk_score: 10, description: 'ClientAliveInterval=300.', evidence: { ClientAliveInterval: 300, expected: '≤300' }, recommendation: { command: "sed -i 's/^#*ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config" }, compliance: [{ framework: 'CIS', control: '5.2.14' }] },
+    { policy_id: 'SSH-004', category: 'ssh_hardening', title: 'Máximo de intentos de autenticación limitado', status: 'PASS', severity: 'MEDIUM', risk_score: 10, description: 'MaxAuthTries=3.', evidence: { MaxAuthTries: 3, expected: '≤4' }, recommendation: { command: "sed -i 's/^#*MaxAuthTries.*/MaxAuthTries 4/' /etc/ssh/sshd_config" }, compliance: [{ framework: 'CIS', control: '5.2.7' }] },
+    { policy_id: 'SSH-005', category: 'ssh_hardening', title: 'Contraseñas vacías prohibidas en SSH', status: 'PASS', severity: 'CRITICAL', risk_score: 5, description: 'PermitEmptyPasswords=no.', evidence: { PermitEmptyPasswords: 'no', expected: 'no' }, recommendation: { command: "sed -i 's/^PermitEmptyPasswords yes/PermitEmptyPasswords no/' /etc/ssh/sshd_config" }, compliance: [{ framework: 'CIS', control: '5.2.9' }] },
+    { policy_id: 'FW-001', category: 'firewall', title: 'Firewall activo', status: 'WARN', severity: 'HIGH', risk_score: 65, description: 'UFW inactivo. iptables tiene 2 reglas de bloqueo activas.', evidence: { ufw_active: 'no', firewalld_active: 'no', iptables_drop_rules: 2 }, recommendation: { command: 'systemctl enable --now firewalld' }, compliance: [{ framework: 'CIS', control: '3.5.1' }] },
+    { policy_id: 'FW-002', category: 'firewall', title: 'Puertos inseguros expuestos', status: 'PASS', severity: 'LOW', risk_score: 5, description: 'Sin puertos legacy peligrosos abiertos.', evidence: { listening_ports: '0.0.0.0:22, 0.0.0.0:80, 0.0.0.0:443', dangerous_ports: 'ninguno' }, recommendation: { command: 'ss -tlnp | grep LISTEN' }, compliance: [{ framework: 'CIS', control: '3.5.2' }] },
+    { policy_id: 'KERN-001', category: 'kernel_hardening', title: 'ASLR habilitado', status: 'PASS', severity: 'HIGH', risk_score: 10, description: 'ASLR completo (randomize_va_space=2).', evidence: { randomize_va_space: 2, expected: 2 }, recommendation: { command: "echo 'kernel.randomize_va_space = 2' >> /etc/sysctl.conf" }, compliance: [{ framework: 'CIS', control: '1.5.1' }] },
+    { policy_id: 'KERN-002', category: 'kernel_hardening', title: 'SELinux/AppArmor activo', status: 'FAIL', severity: 'HIGH', risk_score: 80, description: 'SELinux en modo Permissive — no bloquea violaciones.', evidence: { selinux_status: 'Permissive', apparmor: 'inactive' }, recommendation: { command: "setenforce 1 && sed -i 's/SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config" }, compliance: [{ framework: 'CIS', control: '1.6.1' }] },
+    { policy_id: 'KERN-003', category: 'kernel_hardening', title: 'IP Forwarding deshabilitado', status: 'PASS', severity: 'MEDIUM', risk_score: 5, description: 'net.ipv4.ip_forward=0.', evidence: { net_ipv4_ip_forward: '0', expected: '0' }, recommendation: { command: "sysctl -w net.ipv4.ip_forward=0" }, compliance: [{ framework: 'CIS', control: '3.1.1' }] },
+    { policy_id: 'KERN-004', category: 'kernel_hardening', title: 'Core dumps de binarios SUID deshabilitados', status: 'PASS', severity: 'MEDIUM', risk_score: 5, description: 'fs.suid_dumpable=0.', evidence: { fs_suid_dumpable: '0', expected: '0' }, recommendation: { command: "sysctl -w fs.suid_dumpable=0" }, compliance: [{ framework: 'CIS', control: '1.5.4' }] },
+    { policy_id: 'USR-001', category: 'users_permissions', title: 'Sin usuarios extra con UID 0', status: 'PASS', severity: 'CRITICAL', risk_score: 5, description: 'Solo root tiene UID 0.', evidence: { uid0_accounts: 'root', extra_root_accounts: 'ninguno' }, recommendation: { command: "awk -F: '$3==0' /etc/passwd" }, compliance: [{ framework: 'CIS', control: '5.4.2' }] },
+    { policy_id: 'USR-002', category: 'users_permissions', title: 'Sin reglas sudo NOPASSWD', status: 'FAIL', severity: 'HIGH', risk_score: 85, description: '2 reglas NOPASSWD encontradas en /etc/sudoers.d/.', evidence: { nopasswd_entries: 2, expected: '0' }, recommendation: { command: "grep -rn 'NOPASSWD' /etc/sudoers /etc/sudoers.d/" }, compliance: [{ framework: 'CIS', control: '5.3.6' }] },
+    { policy_id: 'USR-003', category: 'users_permissions', title: 'Sin cuentas con contraseña vacía', status: 'PASS', severity: 'CRITICAL', risk_score: 5, description: 'Todas las cuentas tienen contraseña.', evidence: { empty_password_accounts: 'ninguno' }, recommendation: { command: "awk -F: '$2==\"\"' /etc/shadow" }, compliance: [{ framework: 'CIS', control: '5.4.1' }] },
+    { policy_id: 'FILE-001', category: 'file_integrity', title: 'Sin archivos world-writable en directorios críticos', status: 'PASS', severity: 'LOW', risk_score: 5, description: 'Sin archivos world-writable en /etc /usr/bin /sbin.', evidence: { world_writable_files: 'ninguno', count: 0 }, recommendation: { command: "find /etc /usr -type f -perm -o+w" }, compliance: [{ framework: 'CIS', control: '6.1.10' }] },
+    { policy_id: 'FILE-002', category: 'file_integrity', title: 'Binarios SUID inesperados', status: 'PASS', severity: 'LOW', risk_score: 10, description: '12 binarios SUID — todos en la lista estándar.', evidence: { suid_binaries: 12, unexpected: 'ninguno' }, recommendation: { command: "find /usr/bin /bin -perm -4000 -ls" }, compliance: [{ framework: 'CIS', control: '6.1.13' }] },
+    { policy_id: 'SVC-001', category: 'services', title: 'Servicios inseguros inactivos', status: 'PASS', severity: 'LOW', risk_score: 5, description: 'Sin servicios Telnet/FTP/RSH activos.', evidence: { running_insecure_services: 'ninguno' }, recommendation: { command: "systemctl list-units --state=running --type=service" }, compliance: [{ framework: 'CIS', control: '2.1' }] },
+  ];
+  const score = calcHardeningScore(policies);
+  return {
+    host: serverName,
+    os: 'Demo Linux (Simulado)',
+    scan_id: `scan-sim-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    summary: {
+      passed: policies.filter(p => p.status === 'PASS').length,
+      failed:  policies.filter(p => p.status === 'FAIL').length,
+      warnings: policies.filter(p => p.status === 'WARN').length,
+      critical: policies.filter(p => p.status === 'FAIL' && (p.severity === 'CRITICAL' || p.severity === 'HIGH')).length,
+      score,
+    },
+    policies,
+  };
+}
+
+app.post('/api/servers/:id/security-scan', async (req, res) => {
+  const srv = db.connections.find((s: any) => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Servidor no encontrado.' });
+
+  // Simulated mode: no real credentials
+  if (!srv.password && !srv.privateKey) {
+    return res.json(generateSimulatedScan(srv.name));
+  }
+
+  try {
+    const result = await runRealSSHCommandAsync(srv, HARDENING_SCAN_SCRIPT);
+    const data = parseScanOutput(result.stdout);
+    const policies = buildHardeningPolicies(data);
+    const score = calcHardeningScore(policies);
+
+    const scanResult = {
+      host: data.SRV_HOSTNAME || srv.name,
+      os: data.SRV_OS || srv.osName || 'Linux',
+      scan_id: `scan-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      summary: {
+        passed:   policies.filter((p: any) => p.status === 'PASS').length,
+        failed:   policies.filter((p: any) => p.status === 'FAIL').length,
+        warnings: policies.filter((p: any) => p.status === 'WARN').length,
+        critical: policies.filter((p: any) => p.status === 'FAIL' && (p.severity === 'CRITICAL' || p.severity === 'HIGH')).length,
+        score,
+      },
+      policies,
+    };
+
+    return res.json(scanResult);
+  } catch (err: any) {
+    return res.status(500).json({ error: `Error ejecutando scan: ${err.message}` });
+  }
+});
+
 // ---------------- PLATFORM RUNTIME ENTRYWAYS ----------------
 
 // Setup Dev vs Production Static file routing

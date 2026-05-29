@@ -176,3 +176,48 @@ export interface AIChatMessage {
   confirmationState?: 'pending' | 'confirmed' | 'declined';
   modeWhenCreated?: AIControlMode;  // mode active when plan was generated
 }
+
+// ── Hardening Scan ────────────────────────────────────────────────────────────
+
+export type HardeningStatus   = 'PASS' | 'FAIL' | 'WARN' | 'INFO' | 'ERROR';
+export type HardeningSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface HardeningCompliance {
+  framework: string;
+  control: string;
+}
+
+export interface HardeningRecommendation {
+  command: string;
+  restart?: string;
+}
+
+export interface HardeningPolicy {
+  policy_id: string;
+  category: string;
+  title: string;
+  status: HardeningStatus;
+  severity: HardeningSeverity;
+  risk_score: number;
+  description: string;
+  evidence: Record<string, string | number | boolean>;
+  recommendation: HardeningRecommendation;
+  compliance: HardeningCompliance[];
+}
+
+export interface HardeningScanSummary {
+  passed: number;
+  failed: number;
+  warnings: number;
+  critical: number;
+  score: number;
+}
+
+export interface HardeningScanResult {
+  host: string;
+  os: string;
+  scan_id: string;
+  timestamp: string;
+  summary: HardeningScanSummary;
+  policies: HardeningPolicy[];
+}
