@@ -11,7 +11,8 @@
       "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; $ts = Get-Date -Format \"yyyy-MM-dd HH:mm\"; git add -A; git commit -m \"checkpoint: linux-aso-v2 — $ts\")",
       "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"checkpoint: role-modal + clear-console-btn — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")",
       "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"feat: hardening scan — 25 controles SSH/FW/kernel/users/files/svc, score 0-100, AI analysis, CIS/NIST compliance — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")",
-      "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"checkpoint: no-default-role + clipboard-copy + clear-scan — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")"
+      "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"checkpoint: no-default-role + clipboard-copy + clear-scan — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")",
+      "Bash(git commit -m 'checkpoint: ssh-vault-wizard-v1 — 2026-05-29 *)"
     ]
   }
 }

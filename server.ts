@@ -1789,6 +1789,35 @@ app.post('/api/servers/:id/security-scan', async (req, res) => {
   }
 });
 
+// ---------------- SSH TEST CONNECTION (no save) ----------------
+
+app.post('/api/servers/test-connection', async (req, res) => {
+  const { host, port, username, authType, password, privateKey, passphrase } = req.body;
+  if (!host || !username) return res.status(400).json({ success: false, error: 'Host y usuario son requeridos.' });
+
+  const tempConn: any = {
+    host,
+    port: Number(port) || 22,
+    username,
+    authType: authType || 'password',
+    password: password || '',
+    privateKey: privateKey || '',
+  };
+  if (passphrase) tempConn.passphrase = passphrase;
+
+  const start = Date.now();
+  try {
+    const result = await runRealSSHCommandAsync(tempConn, 'echo __CONN_OK__');
+    const latency = Date.now() - start;
+    if ((result.stdout + result.stderr).includes('__CONN_OK__')) {
+      return res.json({ success: true, latency });
+    }
+    return res.json({ success: false, error: result.stderr || 'El servidor no respondió correctamente.', latency });
+  } catch (err: any) {
+    return res.json({ success: false, error: err.message, latency: Date.now() - start });
+  }
+});
+
 // ---------------- PLATFORM RUNTIME ENTRYWAYS ----------------
 
 // Setup Dev vs Production Static file routing
