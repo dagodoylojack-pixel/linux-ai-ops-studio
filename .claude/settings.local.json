@@ -8,7 +8,8 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(npm install *)",
-      "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; $ts = Get-Date -Format \"yyyy-MM-dd HH:mm\"; git add -A; git commit -m \"checkpoint: linux-aso-v2 — $ts\")"
+      "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; $ts = Get-Date -Format \"yyyy-MM-dd HH:mm\"; git add -A; git commit -m \"checkpoint: linux-aso-v2 — $ts\")",
+      "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"checkpoint: role-modal + clear-console-btn — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")"
     ]
   }
 }

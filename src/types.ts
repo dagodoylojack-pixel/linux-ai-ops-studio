@@ -161,6 +161,7 @@ export interface AIActionStep {
   stdout?: string;
   stderr?: string;
   exitCode?: number;
+  retryCount?: number;       // fully-autonomous: tracks repair attempts for this step
 }
 
 export interface AIChatMessage {
@@ -173,4 +174,5 @@ export interface AIChatMessage {
   reportSummary?: string;
   requiresConfirmation?: boolean;
   confirmationState?: 'pending' | 'confirmed' | 'declined';
+  modeWhenCreated?: AIControlMode;  // mode active when plan was generated
 }

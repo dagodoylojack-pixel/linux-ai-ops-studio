@@ -20,6 +20,7 @@ import {
   ArrowUp,
   RefreshCw,
   X,
+  Trash2,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
@@ -872,11 +873,19 @@ export default function IntelligenceCenter({
               })}
               <div ref={terminalEndRef} />
             </div>
-            <form onSubmit={handleTerminalSubmit} className={`flex border-t ${rootMode ? 'border-red-900/40 bg-red-950/10' : 'border-brand-border bg-brand-bar'} p-1`}>
+            <form onSubmit={handleTerminalSubmit} className={`flex items-center border-t ${rootMode ? 'border-red-900/40 bg-red-950/10' : 'border-brand-border bg-brand-bar'} p-1`}>
               <span className={`font-bold self-center px-2 font-mono ${rootMode ? 'text-red-400' : 'text-emerald-400'}`}>{termPrompt}</span>
               <input type="text" value={inputCmd} onChange={(e) => setInputCmd(e.target.value)} onKeyDown={handleKeyDown}
                 placeholder="Escribe un comando bash o 'help'..."
                 className="flex-1 bg-transparent border-none outline-none text-zinc-100 text-xs py-2 px-1 font-mono" />
+              <button
+                type="button"
+                onClick={() => setTermLines([])}
+                title="Limpiar consola"
+                className="p-2 text-zinc-600 hover:text-zinc-300 cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
               <button type="submit" className="p-2 text-emerald-400 hover:text-emerald-300 cursor-pointer"><Send className="w-4 h-4" /></button>
             </form>
           </div>
