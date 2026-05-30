@@ -297,7 +297,7 @@ export default function SSHConnectionManager({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span title={serv.name} className={`text-xs font-bold truncate max-w-[120px] ${isActive ? 'text-emerald-400' : 'text-zinc-200'}`}>{serv.name}</span>
+                      <span title={serv.name} className={`text-xs font-bold truncate ${isActive ? 'text-emerald-400' : 'text-zinc-200'}`}>{serv.name}</span>
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${serv.status === 'online' ? 'bg-emerald-400' : 'bg-[#404040]'}`} />
                     </div>
                     <span title={`${serv.username}@${serv.host}:${serv.port}`} className="text-[10px] text-brand-text-muted font-mono leading-tight block mt-0.5 truncate">
