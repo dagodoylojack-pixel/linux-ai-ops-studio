@@ -12,7 +12,15 @@
       "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"checkpoint: role-modal + clear-console-btn — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")",
       "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"feat: hardening scan — 25 controles SSH/FW/kernel/users/files/svc, score 0-100, AI analysis, CIS/NIST compliance — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")",
       "PowerShell(cd \"c:\\\\Users\\\\dagodoy\\\\Downloads\\\\linux-ai-ops-studio\"; git add -A; git commit -m \"checkpoint: no-default-role + clipboard-copy + clear-scan — 2026-05-29 $\\(Get-Date -Format 'HH:mm'\\)\")",
-      "Bash(git commit -m 'checkpoint: ssh-vault-wizard-v1 — 2026-05-29 *)"
+      "Bash(git commit -m 'checkpoint: ssh-vault-wizard-v1 — 2026-05-29 *)",
+      "WebFetch(domain:github.com)",
+      "Read(//c/Users/dagodoy/.claude/skills/gstack/**)",
+      "Bash(bun --version)",
+      "PowerShell(powershell -c \"irm bun.sh/install.ps1 | iex\" 2>&1)",
+      "Bash(gh pr *)",
+      "Bash(grep -m1 ^description: __TRACKED_VAR__/.claude/skills/gstack/__TRACKED_VAR__/SKILL.md)",
+      "Read(//c/Users/dagodoy/.claude/skills/design-review/**)",
+      "Bash(git commit *)"
     ]
   }
 }
