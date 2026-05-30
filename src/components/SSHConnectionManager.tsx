@@ -297,10 +297,10 @@ export default function SSHConnectionManager({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold truncate ${isActive ? 'text-emerald-400' : 'text-zinc-200'}`}>{serv.name}</span>
+                      <span title={serv.name} className={`text-xs font-bold truncate max-w-[120px] ${isActive ? 'text-emerald-400' : 'text-zinc-200'}`}>{serv.name}</span>
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${serv.status === 'online' ? 'bg-emerald-400' : 'bg-[#404040]'}`} />
                     </div>
-                    <span className="text-[10px] text-brand-text-muted font-mono leading-tight block mt-0.5 truncate">
+                    <span title={`${serv.username}@${serv.host}:${serv.port}`} className="text-[10px] text-brand-text-muted font-mono leading-tight block mt-0.5 truncate">
                       {serv.username}@{serv.host}:{serv.port}
                     </span>
                   </div>
@@ -309,7 +309,7 @@ export default function SSHConnectionManager({
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {isActive && serv.status === 'online' && <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">Activo</span>}
                   {isActive && serv.status === 'connecting' && <span className="text-[9px] uppercase tracking-wider font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">Conectando</span>}
-                  {isActive && serv.status === 'offline' && <span className="text-[9px] uppercase tracking-wider font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 font-mono">Offline</span>}
+                  {isActive && serv.status === 'offline' && <span className="text-[9px] uppercase tracking-wider font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 font-mono">Desconectado</span>}
                   {serv.authType === 'privateKey' && <Key className="w-3.5 h-3.5 text-zinc-500 group-hover:text-amber-400 transition-colors" />}
 
                   {busyId === serv.id ? (

@@ -877,7 +877,10 @@ export default function IntelligenceCenter({
             </button>
           ))}
         </div>
-        <div className="text-[10px] text-brand-text-muted font-mono hidden sm:block">
+        <div
+          title={`SSH @ ${server?.username || 'root'}:${server?.host || 'unset'}`}
+          className="text-[10px] text-brand-text-muted font-mono hidden sm:block truncate max-w-[200px]"
+        >
           SSH @ {server?.username || 'root'}:{server?.host || 'unset'}
         </div>
       </div>

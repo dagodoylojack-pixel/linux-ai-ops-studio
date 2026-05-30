@@ -263,7 +263,7 @@ export default function Dashboard({
       </div>
 
       {/* Tabs Menu */}
-      <div className="flex border-b border-brand-border mt-5">
+      <div className="flex overflow-x-auto border-b border-brand-border mt-5 no-scrollbar">
         {[
           { id: 'resources', label: 'Monitor de Recursos' },
           { id: 'processes', label: `Procesos (${processes.length})` },
@@ -273,7 +273,7 @@ export default function Dashboard({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 text-xs font-bold border-b-2 font-sans transition-all cursor-pointer ${
+            className={`flex-shrink-0 px-4 py-2 text-xs font-bold border-b-2 font-sans transition-all cursor-pointer whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-emerald-500 text-emerald-400'
                 : 'border-transparent text-brand-text-muted hover:text-[#E5E7EB]'

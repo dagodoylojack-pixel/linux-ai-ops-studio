@@ -543,20 +543,20 @@ export default function AgentOpsStudio({ server, onExecuteCommand, onRefreshTele
       </div>
 
       {/* ── Agent tray ── */}
-      <div className="flex gap-2.5 py-2.5 overflow-x-auto flex-shrink-0 border-b border-brand-border no-scrollbar select-none">
+      <div className="flex flex-wrap gap-1.5 py-2 flex-shrink-0 border-b border-brand-border select-none">
         {AGENT_LIST.map((ag) => (
           <button
             key={ag.role}
             onClick={() => handleRoleClick(ag)}
             disabled={isExecuting}
             title={activeRole === ag.role ? ag.desc : `Cambiar a ${ag.name}`}
-            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs font-bold font-sans transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] font-bold font-sans transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               activeRole === ag.role
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                 : 'bg-brand-dark border border-brand-border text-brand-text-muted hover:border-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30'
             }`}
           >
-            <Cpu className="w-3.5 h-3.5" /> {ag.name}
+            <Cpu className="w-3 h-3" /> {ag.name}
           </button>
         ))}
       </div>
