@@ -975,19 +975,50 @@ export default function IntelligenceCenter({
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-[#050505]/60">
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 bg-[#050505]/60 select-text">
               {termLines.map((line, idx) => {
+                const handleCopyLine = () => {
+                  navigator.clipboard.writeText(line.text);
+                  setCopiedCmd(line.text);
+                  setTimeout(() => setCopiedCmd(null), 2000);
+                };
                 if (line.type === 'input') return (
-                  <div key={idx} className="flex gap-1">
+                  <div key={idx} className="flex gap-1 group hover:bg-zinc-950/40 px-2 py-0.5 rounded transition-colors">
                     <span className={`font-bold ${rootMode ? 'text-red-400' : 'text-emerald-400'}`}>{termPrompt}</span>
-                    <span className="text-zinc-100 font-semibold">{line.text}</span>
+                    <span className="text-zinc-100 font-semibold flex-1">{line.text}</span>
+                    <button
+                      onClick={handleCopyLine}
+                      title="Copiar comando"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 flex-shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 );
                 const cls = { stdout: 'text-zinc-300 whitespace-pre-wrap', stderr: 'text-rose-400 whitespace-pre-wrap bg-rose-950/20 px-2 py-1 rounded', system: 'text-emerald-400 font-bold text-[10px] italic' };
-                return <div key={idx} className={cls[line.type as keyof typeof cls] || 'text-zinc-300'}>{line.text}</div>;
+                return (
+                  <div key={idx} className={`${cls[line.type as keyof typeof cls] || 'text-zinc-300'} group hover:bg-zinc-950/40 px-2 py-0.5 rounded transition-colors flex justify-between items-start`}>
+                    <span className="flex-1">{line.text}</span>
+                    {line.type === 'stdout' && (
+                      <button
+                        onClick={handleCopyLine}
+                        title="Copiar salida"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 flex-shrink-0 ml-2"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
               })}
               <div ref={terminalEndRef} />
             </div>
+            {copiedCmd && (
+              <div className="absolute bottom-16 right-4 bg-emerald-600 text-white px-3 py-2 rounded text-xs font-semibold flex items-center gap-2 shadow-lg animate-pulse">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Copiado al portapapeles
+              </div>
+            )}
             <form onSubmit={handleTerminalSubmit} className={`flex items-center border-t ${rootMode ? 'border-red-900/40 bg-red-950/10' : 'border-brand-border bg-brand-bar'} p-1`}>
               <span className={`font-bold self-center px-2 font-mono ${rootMode ? 'text-red-400' : 'text-emerald-400'}`}>{termPrompt}</span>
               <input type="text" value={inputCmd} onChange={(e) => setInputCmd(e.target.value)} onKeyDown={handleKeyDown}
