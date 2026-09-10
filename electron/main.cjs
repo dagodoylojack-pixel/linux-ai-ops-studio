@@ -10,7 +10,11 @@ const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
+const fs = require('fs');
 const { isFirstRun, showSetupWizard, loadApiKey } = require('./setup-wizard.cjs');
+
+// __dirname equivalent in CommonJS
+const __dirname = path.dirname(__filename);
 
 let mainWindow;
 let serverProcess;
@@ -53,13 +57,16 @@ async function waitForServer() {
  * Launch the Express server as a child process
  */
 function launchServer() {
-  const installDir = path.dirname(require.main.filename);
-  const serverPath = path.join(installDir, '..', 'dist', 'server.cjs');
+  // __dirname is electron/, parent is app root
+  const appRoot = path.join(__dirname, '..');
+  const serverPath = path.join(appRoot, 'dist', 'server.cjs');
 
-  console.log(`[Server] Launching at ${serverPath} from cwd ${installDir}`);
+  console.log(`[Server] App root: ${appRoot}`);
+  console.log(`[Server] Server path: ${serverPath}`);
+  console.log(`[Server] Server exists: ${fs.existsSync(serverPath)}`);
 
   serverProcess = spawn('node', [serverPath], {
-    cwd: installDir,
+    cwd: appRoot, // Run from app root so relative paths work
     env: {
       ...process.env,
       NODE_ENV: 'production',
@@ -69,7 +76,7 @@ function launchServer() {
         'linux_ai_ops.sqlite3'
       ),
     },
-    stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout/stderr
+    stdio: 'inherit', // Show all output for debugging
   });
 
   serverProcess.stdout.on('data', (data) => {
