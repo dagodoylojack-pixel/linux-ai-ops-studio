@@ -3,18 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SSHConnectionManager from './components/SSHConnectionManager';
 import Dashboard from './components/Dashboard';
 import IntelligenceCenter from './components/IntelligenceCenter';
 import AgentOpsStudio from './components/AgentOpsStudio';
 import { ServerConnection, LinuxProcess, SystemService, DockerContainer, LogLine, LinuxFile, SecurityAsset, AuditLog } from './types';
 import { Terminal, Bot, Radio, Sparkles, Server, LayoutDashboard } from 'lucide-react';
+import { AdaptiveMemory } from './lib/AdaptiveMemory';
+import { WorkflowOrchestrator } from './lib/WorkflowOrchestrator';
 
 type MobileTab = 'servers' | 'dashboard' | 'agent';
 
 export default function App() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('servers');
+
+  // Ruflo integration: Adaptive Memory & Workflow Orchestrator
+  const adaptiveMemoryRef = useRef(new AdaptiveMemory());
+  const workflowOrchestratorRef = useRef(new WorkflowOrchestrator());
 
   // Master connection states
   const [servers, setServers] = useState<ServerConnection[]>([]);
@@ -433,6 +439,8 @@ export default function App() {
             server={selectedServer}
             onExecuteCommand={executeServerCommand}
             onRefreshTelemetry={() => refreshActiveServerState(true)}
+            adaptiveMemory={adaptiveMemoryRef.current}
+            workflowOrchestrator={workflowOrchestratorRef.current}
           />
         </div>
 

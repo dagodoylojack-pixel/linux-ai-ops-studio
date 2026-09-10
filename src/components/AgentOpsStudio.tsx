@@ -5,6 +5,8 @@
 
 import React, { useState, useRef } from 'react';
 import { ServerConnection, AgentRole, AIControlMode, AIChatMessage, AIActionStep } from '../types';
+import { AdaptiveMemory } from '../lib/AdaptiveMemory';
+import { WorkflowOrchestrator } from '../lib/WorkflowOrchestrator';
 import {
   Cpu,
   Bot,
@@ -105,11 +107,19 @@ interface AgentOpsStudioProps {
   server: ServerConnection | null;
   onExecuteCommand: (cmd: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
   onRefreshTelemetry: () => void;
+  adaptiveMemory?: AdaptiveMemory;
+  workflowOrchestrator?: WorkflowOrchestrator;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function AgentOpsStudio({ server, onExecuteCommand, onRefreshTelemetry }: AgentOpsStudioProps) {
+export default function AgentOpsStudio({
+  server,
+  onExecuteCommand,
+  onRefreshTelemetry,
+  adaptiveMemory,
+  workflowOrchestrator,
+}: AgentOpsStudioProps) {
   const [activeRole, setActiveRole]       = useState<AgentRole | null>(null);
   const [pendingRole, setPendingRole]     = useState<typeof AGENT_LIST[0] | null>(null);
   const [controlMode, setControlMode]     = useState<AIControlMode>('semi-autonomous');
