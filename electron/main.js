@@ -10,6 +10,7 @@ const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
+const { isFirstRun, showSetupWizard, loadApiKey } = require('./setup-wizard');
 
 let mainWindow;
 let serverProcess;
@@ -145,6 +146,11 @@ async function showLoadingWindow() {
 
   if (ready) {
     createWindow();
+
+    // Show first-run setup wizard if needed
+    if (isFirstRun()) {
+      setTimeout(() => showSetupWizard(mainWindow), 1000);
+    }
   } else {
     console.error('Server failed to start within timeout');
     app.quit();
@@ -224,6 +230,9 @@ function createMenu() {
  * App lifecycle
  */
 app.on('ready', async () => {
+  // Load API key from config if available
+  loadApiKey();
+
   createMenu();
   launchServer();
   await showLoadingWindow();
