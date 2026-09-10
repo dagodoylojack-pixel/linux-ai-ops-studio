@@ -13,7 +13,9 @@
     "restart:app": "powershell -ExecutionPolicy Bypass -File ./manage-app.ps1 restart",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "electron:prepare": "npm run build && rm -rf release-resources && mkdir -p release-resources/node_modules && cp -r dist release-resources/ && npm ci --omit=dev --prefix release-resources && cp package.json release-resources/",
+    "electron:build": "electron-builder"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -37,9 +39,42 @@
     "@types/ssh2": "^1.15.5",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "electron": "^34.1.1",
+    "electron-builder": "^26.0.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
+  },
+  "build": {
+    "appId": "com.linux-ai-ops.studio",
+    "productName": "Linux AI Ops Studio",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "electron/**",
+      "build/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "release-resources",
+        "to": ".",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Linux AI Ops Studio"
+    }
   }
 }

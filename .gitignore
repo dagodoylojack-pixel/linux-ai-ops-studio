@@ -1,5 +1,4 @@
 node_modules/
-build/
 dist/
 coverage/
 .DS_Store
@@ -7,3 +6,6 @@ coverage/
 .env*
 !.env.example
 *.sqlite3
+.gstack/
+release/
+release-resources/
