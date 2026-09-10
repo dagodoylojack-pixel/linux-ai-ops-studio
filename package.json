@@ -70,6 +70,7 @@
       "target": ["nsis"],
       "icon": "build/icon.ico"
     },
+    "asar": false,
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
