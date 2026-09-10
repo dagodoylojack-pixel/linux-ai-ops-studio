@@ -14,7 +14,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "electron:prepare": "npm run build && rm -rf release-resources && mkdir -p release-resources/node_modules && cp -r dist release-resources/ && npm ci --omit=dev --prefix release-resources && cp package.json release-resources/",
+    "electron:prepare": "npm run build && node scripts/prepare-electron.js",
     "electron:build": "electron-builder"
   },
   "dependencies": {
