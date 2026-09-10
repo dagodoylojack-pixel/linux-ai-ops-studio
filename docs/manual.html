@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Linux AI Ops Studio — Manual Técnico</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 10pt; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #fff;
+    color: #1a1a2e;
+    line-height: 1.6;
+  }
+
+  /* ── Page breaks ── */
+  .page-break { page-break-after: always; break-after: page; }
+  .no-break   { page-break-inside: avoid; break-inside: avoid; }
+
+  /* ── Cover page ── */
+  .cover {
+    height: 100vh;
+    min-height: 297mm;
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 40%, #0d1f12 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    color: white;
+  }
+  .cover-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(16,185,129,.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16,185,129,.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .cover-glow {
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16,185,129,.15) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .cover-content { position: relative; z-index: 1; text-align: center; padding: 40px; }
+  .cover-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(16,185,129,.15);
+    border: 1px solid rgba(16,185,129,.4);
+    border-radius: 20px;
+    padding: 6px 18px;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #6ee7b7;
+    margin-bottom: 32px;
+  }
+  .cover-badge svg { width: 14px; height: 14px; }
+  .cover-logo {
+    width: 80px; height: 80px;
+    background: linear-gradient(135deg, #059669, #2563eb);
+    border-radius: 20px;
+    margin: 0 auto 24px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 40px rgba(16,185,129,.4);
+  }
+  .cover-logo svg { width: 40px; height: 40px; color: white; }
+  .cover h1 { font-size: 38pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+  .cover h1 span { color: #34d399; }
+  .cover-subtitle { font-size: 13pt; color: #9ca3af; margin-top: 12px; font-weight: 300; }
+  .cover-version {
+    margin-top: 48px;
+    display: flex; gap: 40px; justify-content: center;
+  }
+  .cover-meta { text-align: center; }
+  .cover-meta-label { font-size: 7pt; text-transform: uppercase; letter-spacing: .1em; color: #6b7280; }
+  .cover-meta-value { font-size: 11pt; font-weight: 600; color: #e5e7eb; margin-top: 2px; }
+  .cover-line {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, #059669, #2563eb, #7c3aed);
+  }
+
+  /* ── TOC ── */
+  .toc-page {
+    padding: 60px 70px;
+    min-height: 100vh;
+  }
+  .section-label {
+    font-size: 8pt; font-weight: 700; letter-spacing: .15em;
+    text-transform: uppercase; color: #059669;
+    margin-bottom: 8px;
+  }
+  .toc-title { font-size: 26pt; font-weight: 800; color: #1a1a2e; margin-bottom: 40px; }
+  .toc-list { list-style: none; }
+  .toc-item {
+    display: flex; align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px dashed #e5e7eb;
+    font-size: 10pt;
+  }
+  .toc-item:last-child { border-bottom: none; }
+  .toc-num { font-size: 8pt; font-weight: 700; color: #059669; width: 32px; flex-shrink: 0; }
+  .toc-text { flex: 1; font-weight: 500; color: #374151; }
+  .toc-sub { font-size: 9pt; color: #9ca3af; font-weight: 400; margin-left: 8px; }
+  .toc-page-num { font-size: 9pt; font-weight: 600; color: #6b7280; font-family: monospace; }
+
+  /* ── Content pages ── */
+  .content-page { padding: 50px 70px; }
+  .chapter-header {
+    display: flex; align-items: center; gap: 16px;
+    padding-bottom: 20px; margin-bottom: 32px;
+    border-bottom: 2px solid #f0fdf4;
+  }
+  .chapter-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, #059669, #0284c7);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .chapter-icon svg { width: 26px; height: 26px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .chapter-meta { }
+  .chapter-num { font-size: 8pt; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: #059669; }
+  .chapter-title { font-size: 22pt; font-weight: 800; color: #1a1a2e; line-height: 1.1; margin-top: 2px; }
+
+  h2 { font-size: 14pt; font-weight: 700; color: #1a1a2e; margin: 28px 0 12px; }
+  h3 { font-size: 11pt; font-weight: 600; color: #374151; margin: 20px 0 8px; }
+  p  { font-size: 10pt; color: #4b5563; margin-bottom: 12px; line-height: 1.7; }
+
+  /* ── Info boxes ── */
+  .info-box {
+    border-radius: 10px; padding: 16px 20px; margin: 16px 0;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .info-box.green  { background: #f0fdf4; border-left: 4px solid #059669; }
+  .info-box.blue   { background: #eff6ff; border-left: 4px solid #2563eb; }
+  .info-box.amber  { background: #fffbeb; border-left: 4px solid #d97706; }
+  .info-box.red    { background: #fef2f2; border-left: 4px solid #dc2626; }
+  .info-box-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .info-box-content p { margin: 0; font-size: 9.5pt; }
+  .info-box-content strong { font-size: 10pt; display: block; margin-bottom: 4px; color: #1a1a2e; }
+
+  /* ── Feature grid ── */
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0;
+  }
+  .feature-card {
+    border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px;
+    background: #fafafa;
+  }
+  .feature-card-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 10px;
+    font-size: 18px;
+  }
+  .feature-card h4 { font-size: 10pt; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+  .feature-card p  { font-size: 8.5pt; color: #6b7280; margin: 0; line-height: 1.5; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9pt; }
+  thead tr { background: #1a1a2e; color: white; }
+  thead th { padding: 10px 14px; text-align: left; font-weight: 600; letter-spacing: .04em; font-size: 8.5pt; }
+  tbody tr { border-bottom: 1px solid #f3f4f6; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+  tbody td { padding: 9px 14px; color: #374151; vertical-align: top; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 7.5pt; font-weight: 700; letter-spacing: .06em;
+  }
+  .badge-green  { background: #dcfce7; color: #166534; }
+  .badge-blue   { background: #dbeafe; color: #1e40af; }
+  .badge-amber  { background: #fef3c7; color: #92400e; }
+  .badge-red    { background: #fee2e2; color: #991b1b; }
+  .badge-gray   { background: #f3f4f6; color: #374151; }
+
+  /* ── Code ── */
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 8.5pt;
+    background: #1e293b; color: #e2e8f0;
+    padding: 2px 6px; border-radius: 4px;
+  }
+  pre {
+    background: #0f172a; color: #e2e8f0;
+    padding: 16px 20px; border-radius: 10px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 8.5pt; line-height: 1.6;
+    margin: 12px 0; overflow: hidden;
+    border-left: 3px solid #059669;
+  }
+  pre .c  { color: #64748b; font-style: italic; }
+  pre .k  { color: #7dd3fc; }
+  pre .s  { color: #86efac; }
+  pre .v  { color: #fdba74; }
+
+  /* ── Screenshots ── */
+  .screenshot-container {
+    margin: 20px 0; border-radius: 12px; overflow: hidden;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+  }
+  .screenshot-container img { width: 100%; display: block; }
+  .screenshot-caption {
+    background: #f8fafc; padding: 8px 16px;
+    font-size: 8.5pt; color: #64748b; text-align: center;
+    font-style: italic; border-top: 1px solid #e5e7eb;
+  }
+
+  /* ── SVG Charts ── */
+  .chart-container { margin: 20px 0; }
+  .chart-title {
+    font-size: 9.5pt; font-weight: 700; color: #374151;
+    margin-bottom: 12px; letter-spacing: .04em; text-transform: uppercase;
+  }
+
+  /* ── Architecture diagram ── */
+  .arch-diagram {
+    background: #0f172a; border-radius: 12px;
+    padding: 30px; margin: 20px 0;
+    border: 1px solid #1e293b;
+  }
+
+  /* ── Step list ── */
+  .step-list { list-style: none; margin: 16px 0; }
+  .step-item {
+    display: flex; gap: 14px; margin-bottom: 16px; align-items: flex-start;
+  }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, #059669, #0284c7);
+    color: white; font-weight: 700; font-size: 10pt;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .step-content h4 { font-size: 10pt; font-weight: 600; color: #1a1a2e; margin-bottom: 3px; }
+  .step-content p  { font-size: 9pt; color: #6b7280; margin: 0; }
+
+  /* ── Security policy row ── */
+  .policy-table thead tr { background: #1e293b; }
+  .risk-high   { color: #dc2626; font-weight: 700; }
+  .risk-medium { color: #d97706; font-weight: 700; }
+  .risk-low    { color: #059669; font-weight: 700; }
+
+  /* ── Two-column layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 16px 0; }
+  .two-col-3-2 { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; margin: 16px 0; }
+
+  /* ── Footer ── */
+  @page {
+    margin: 0;
+    size: A4 portrait;
+  }
+  .page-footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 40px;
+    background: #fafafa;
+    border-top: 1px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 70px;
+    font-size: 7.5pt; color: #9ca3af;
+  }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+
+  /* ── API endpoint cards ── */
+  .endpoint {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 8px 12px; border-radius: 6px;
+    background: #f8fafc; border: 1px solid #e5e7eb;
+    margin-bottom: 8px;
+  }
+  .method {
+    font-family: monospace; font-size: 8pt; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+  }
+  .method-get  { background: #dcfce7; color: #166534; }
+  .method-post { background: #dbeafe; color: #1e40af; }
+  .method-del  { background: #fee2e2; color: #991b1b; }
+  .endpoint-path { font-family: monospace; font-size: 9pt; color: #1e293b; flex: 1; }
+  .endpoint-desc { font-size: 8.5pt; color: #6b7280; }
+
+  @media print {
+    .page-footer { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     COVER PAGE
+══════════════════════════════════════════════ -->
+<div class="cover page-break">
+  <div class="cover-grid"></div>
+  <div class="cover-glow"></div>
+  <div class="cover-content">
+
+    <div class="cover-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+      Manual Técnico v1.0
+    </div>
+
+    <div class="cover-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 9.17l4.24-4.24"/><path d="M14.83 14.83l4.24 4.24"/>
+        <path d="M9.17 14.83l-4.24 4.24"/><circle cx="12" cy="12" r="4"/>
+        <circle cx="12" cy="12" r="9"/>
+      </svg>
+    </div>
+
+    <h1>Linux AI Ops<br/><span>Studio</span></h1>
+    <p class="cover-subtitle">Plataforma autónoma de administración y monitoreo de servidores Linux<br/>potenciada por inteligencia artificial</p>
+
+    <div class="cover-version">
+      <div class="cover-meta">
+        <div class="cover-meta-label">Versión</div>
+        <div class="cover-meta-value">1.0.0</div>
+      </div>
+      <div class="cover-meta">
+        <div class="cover-meta-label">Autor</div>
+        <div class="cover-meta-value">Daniel Godoy</div>
+      </div>
+      <div class="cover-meta">
+        <div class="cover-meta-label">Fecha</div>
+        <div class="cover-meta-value">Mayo 2026</div>
+      </div>
+      <div class="cover-meta">
+        <div class="cover-meta-label">Licencia</div>
+        <div class="cover-meta-value">Apache 2.0</div>
+      </div>
+    </div>
+
+  </div>
+  <div class="cover-line"></div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     TABLE OF CONTENTS
+══════════════════════════════════════════════ -->
+<div class="toc-page page-break">
+  <div class="section-label">Índice</div>
+  <div class="toc-title">Contenido</div>
+
+  <ul class="toc-list">
+    <li class="toc-item">
+      <span class="toc-num">01</span>
+      <span class="toc-text">Introducción y Visión General <span class="toc-sub">— stack tecnológico, arquitectura</span></span>
+      <span class="toc-page-num">3</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">02</span>
+      <span class="toc-text">Vault de Credenciales SSH <span class="toc-sub">— gestión segura de servidores</span></span>
+      <span class="toc-page-num">5</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">03</span>
+      <span class="toc-text">Dashboard de Monitoreo <span class="toc-sub">— telemetría en tiempo real</span></span>
+      <span class="toc-page-num">7</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">04</span>
+      <span class="toc-text">Intelligence Center <span class="toc-sub">— terminal, logs, SFTP, seguridad</span></span>
+      <span class="toc-page-num">10</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">05</span>
+      <span class="toc-text">Multiagente Copilot IA <span class="toc-sub">— agentes autónomos, modos de control</span></span>
+      <span class="toc-page-num">14</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">06</span>
+      <span class="toc-text">API REST <span class="toc-sub">— endpoints, contratos, ejemplos</span></span>
+      <span class="toc-page-num">17</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">07</span>
+      <span class="toc-text">Configuración y Despliegue <span class="toc-sub">— variables de entorno, producción</span></span>
+      <span class="toc-page-num">19</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-num">08</span>
+      <span class="toc-text">Auditoría de Seguridad (CIS Hardening) <span class="toc-sub">— 22 controles, compliance</span></span>
+      <span class="toc-page-num">21</span>
+    </li>
+  </ul>
+
+  <!-- Tech stack logos row -->
+  <div style="margin-top:60px;">
+    <div class="section-label">Stack tecnológico</div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:12px;">
+      <span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#166534;">React 19</span>
+      <span style="background:#eff6ff;border:1px solid #bfdbfe;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#1e40af;">TypeScript 5</span>
+      <span style="background:#fef3c7;border:1px solid #fde68a;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#92400e;">Tailwind CSS 4</span>
+      <span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#166534;">Express 5</span>
+      <span style="background:#fdf4ff;border:1px solid #e9d5ff;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#6b21a8;">Vite 6</span>
+      <span style="background:#fff7ed;border:1px solid #fed7aa;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#9a3412;">SQLite (sql.js)</span>
+      <span style="background:#eff6ff;border:1px solid #bfdbfe;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#1e40af;">ssh2</span>
+      <span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#166534;">OpenRouter AI</span>
+      <span style="background:#f8fafc;border:1px solid #e2e8f0;padding:6px 14px;border-radius:20px;font-size:9pt;font-weight:600;color:#334155;">Framer Motion</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 1 — OVERVIEW
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 01</div>
+      <div class="chapter-title">Introducción y Visión General</div>
+    </div>
+  </div>
+
+  <p>
+    <strong>Linux AI Ops Studio</strong> es una plataforma full-stack de administración autónoma de servidores Linux. Combina telemetría en tiempo real, gestión de procesos y servicios, terminal SSH, explorador SFTP, auditoría de seguridad CIS y un sistema multiagente de IA — todo en una interfaz web unificada.
+  </p>
+
+  <div class="info-box green">
+    <div class="info-box-icon">✅</div>
+    <div class="info-box-content">
+      <strong>Propósito central</strong>
+      <p>Reducir el tiempo de respuesta ante incidentes Linux desde minutos a segundos. El agente IA genera planes de acción auditables con control granular de riesgo (bajo / medio / alto) antes de ejecutar cualquier comando.</p>
+    </div>
+  </div>
+
+  <h2>Arquitectura del Sistema</h2>
+
+  <!-- Architecture SVG diagram -->
+  <div class="arch-diagram no-break">
+    <svg viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg" style="width:100%;font-family:Consolas,monospace;">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#059669"/>
+        </marker>
+        <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6"/>
+        </marker>
+      </defs>
+
+      <!-- Browser box -->
+      <rect x="20" y="20" width="170" height="280" rx="10" fill="#0f2027" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="105" y="44" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="700" letter-spacing="2">BROWSER</text>
+      <rect x="35" y="56" width="140" height="30" rx="5" fill="#1e3a5f"/>
+      <text x="105" y="76" text-anchor="middle" fill="#93c5fd" font-size="8">SSHConnectionManager</text>
+      <rect x="35" y="96" width="140" height="30" rx="5" fill="#1e3a5f"/>
+      <text x="105" y="116" text-anchor="middle" fill="#93c5fd" font-size="8">Dashboard</text>
+      <rect x="35" y="136" width="140" height="30" rx="5" fill="#1e3a5f"/>
+      <text x="105" y="156" text-anchor="middle" fill="#93c5fd" font-size="8">IntelligenceCenter</text>
+      <rect x="35" y="176" width="140" height="30" rx="5" fill="#1e3a5f"/>
+      <text x="105" y="196" text-anchor="middle" fill="#93c5fd" font-size="8">AgentOpsStudio</text>
+      <rect x="35" y="216" width="140" height="28" rx="5" fill="#0d2515"/>
+      <text x="105" y="234" text-anchor="middle" fill="#6ee7b7" font-size="7">App.tsx — state &amp; polling</text>
+      <text x="105" y="248" text-anchor="middle" fill="#4ade80" font-size="7">6s interval /api/state</text>
+
+      <!-- Arrow browser → server -->
+      <line x1="192" y1="160" x2="248" y2="160" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="220" y="154" text-anchor="middle" fill="#6ee7b7" font-size="6.5">REST / JSON</text>
+
+      <!-- Server box -->
+      <rect x="250" y="20" width="180" height="280" rx="10" fill="#0f1a0f" stroke="#1e3a1e" stroke-width="1.5"/>
+      <text x="340" y="44" text-anchor="middle" fill="#4ade80" font-size="8" font-weight="700" letter-spacing="2">SERVER (Express)</text>
+      <rect x="265" y="56" width="150" height="26" rx="5" fill="#1e3a1e"/>
+      <text x="340" y="73" text-anchor="middle" fill="#86efac" font-size="8">REST API routes</text>
+      <rect x="265" y="92" width="150" height="26" rx="5" fill="#1e3a1e"/>
+      <text x="340" y="109" text-anchor="middle" fill="#86efac" font-size="8">In-memory db: ServerStateStore</text>
+      <rect x="265" y="128" width="150" height="26" rx="5" fill="#1e3a1e"/>
+      <text x="340" y="145" text-anchor="middle" fill="#86efac" font-size="8">SSH2 Client Pool</text>
+      <rect x="265" y="164" width="150" height="26" rx="5" fill="#1e3a1e"/>
+      <text x="340" y="181" text-anchor="middle" fill="#86efac" font-size="8">State Cache (30s TTL)</text>
+      <rect x="265" y="200" width="150" height="26" rx="5" fill="#1e3a1e"/>
+      <text x="340" y="217" text-anchor="middle" fill="#86efac" font-size="8">analyzeCommandRisk()</text>
+      <rect x="265" y="236" width="150" height="26" rx="5" fill="#0d2515"/>
+      <text x="340" y="250" text-anchor="middle" fill="#4ade80" font-size="7.5">AES-256-CBC + SQLite</text>
+      <text x="340" y="265" text-anchor="middle" fill="#22c55e" font-size="7">.linux_ai_ops.sqlite3</text>
+
+      <!-- Vite embed note -->
+      <rect x="265" y="272" width="150" height="20" rx="4" fill="#1c1c1c"/>
+      <text x="340" y="286" text-anchor="middle" fill="#64748b" font-size="7">Vite middleware (dev mode)</text>
+
+      <!-- Arrow server → SSH -->
+      <line x1="432" y1="140" x2="488" y2="140" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="460" y="134" text-anchor="middle" fill="#6ee7b7" font-size="6.5">ssh2</text>
+
+      <!-- SSH box -->
+      <rect x="490" y="20" width="140" height="140" rx="10" fill="#1a0f1a" stroke="#3b1e5f" stroke-width="1.5"/>
+      <text x="560" y="44" text-anchor="middle" fill="#c084fc" font-size="8" font-weight="700" letter-spacing="1">LINUX SERVERS</text>
+      <rect x="505" y="56" width="110" height="28" rx="5" fill="#2d1b44"/>
+      <text x="560" y="74" text-anchor="middle" fill="#e9d5ff" font-size="7.5">prod-01 (CentOS 7)</text>
+      <rect x="505" y="96" width="110" height="28" rx="5" fill="#2d1b44"/>
+      <text x="560" y="114" text-anchor="middle" fill="#e9d5ff" font-size="7.5">checkmk (Ubuntu)</text>
+      <rect x="505" y="136" width="110" height="16" rx="4" fill="#1a0f1a"/>
+      <text x="560" y="148" text-anchor="middle" fill="#7c3aed" font-size="7">Port 22 · auth: key / pwd</text>
+
+      <!-- Arrow server → OpenRouter -->
+      <line x1="432" y1="220" x2="488" y2="220" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+      <text x="460" y="213" text-anchor="middle" fill="#93c5fd" font-size="6.5">HTTPS</text>
+
+      <!-- OpenRouter box -->
+      <rect x="490" y="180" width="140" height="110" rx="10" fill="#0f172a" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="560" y="204" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="700" letter-spacing="1">OPENROUTER</text>
+      <rect x="505" y="212" width="110" height="24" rx="5" fill="#1e3a5f"/>
+      <text x="560" y="228" text-anchor="middle" fill="#bfdbfe" font-size="7.5">gpt-4.1-mini (default)</text>
+      <rect x="505" y="246" width="110" height="24" rx="5" fill="#1e3a5f"/>
+      <text x="560" y="262" text-anchor="middle" fill="#bfdbfe" font-size="7.5">JSON plan generator</text>
+      <text x="560" y="284" text-anchor="middle" fill="#64748b" font-size="7">Fallback: simulatedAction()</text>
+
+      <!-- Data flow labels -->
+      <text x="192" y="310" fill="#374151" font-size="7">① Poll state</text>
+      <text x="300" y="310" fill="#374151" font-size="7">② SSH exec</text>
+      <text x="440" y="310" fill="#374151" font-size="7">③ AI plan</text>
+    </svg>
+  </div>
+
+  <h2>Principios de Diseño</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background:#f0fdf4;">🏗️</div>
+      <h4>Monolito intencional</h4>
+      <p>Todo el backend vive en <code>server.ts</code>. Sin microservicios. Despliegue de 1 proceso.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background:#eff6ff;">⚡</div>
+      <h4>Polling + Cache</h4>
+      <p>El frontend sondea estado cada 6s. El servidor cachea las respuestas SSH 30s para no saturar las conexiones.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background:#fdf4ff;">🔒</div>
+      <h4>Credenciales cifradas</h4>
+      <p>Las contraseñas y claves privadas se almacenan en SQLite con cifrado AES-256-CBC antes de escribirlas a disco.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background:#fffbeb;">🤖</div>
+      <h4>IA con control de riesgo</h4>
+      <p>Cada comando generado por IA recibe un nivel low/medium/high antes de ejecutarse. El usuario aprueba o rechaza.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background:#fef2f2;">🖥️</div>
+      <h4>Dual mode SSH</h4>
+      <p>Modo simulado para demos (IPs mock), modo real para producción. Sin diferencia de interfaz para el usuario.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon" style="background:#f0fdf4;">📱</div>
+      <h4>Responsive</h4>
+      <p>3 columnas en desktop (xl:), vista de panel único con tabs en mobile. Sin frameworks de UI externos.</p>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 2 — SSH VAULT
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 02</div>
+      <div class="chapter-title">Vault de Credenciales SSH</div>
+    </div>
+  </div>
+
+  <p>
+    El <strong>SSH Connection Vault</strong> es el punto de entrada de la plataforma. Administra un pool de servidores Linux con sus credenciales de acceso, persistidas cifradas en SQLite y con un asistente de 6 pasos para incorporar nuevos nodos de forma segura.
+  </p>
+
+  <!-- Screenshot -->
+  <div class="screenshot-container">
+    <img src="ss_overview.png" alt="Vista general — Vault en columna izquierda" />
+    <div class="screenshot-caption">Fig. 2.1 — Vista general de la aplicación. El Vault ocupa la columna izquierda (1/5 del ancho).</div>
+  </div>
+
+  <h2>Asistente de Conexión (6 pasos)</h2>
+  <ul class="step-list">
+    <li class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-content"><h4>Identidad del servidor</h4><p>Nombre descriptivo, dirección IP/hostname y puerto SSH (por defecto 22).</p></div>
+    </li>
+    <li class="step-item">
+      <div class="step-num">2</div>
+      <div class="step-content"><h4>Credenciales de usuario</h4><p>Nombre de usuario Linux. Soporte para usuarios no-root con escalación posterior vía <code>sudo</code> o <code>su</code>.</p></div>
+    </li>
+    <li class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-content"><h4>Método de autenticación</h4><p>Selección entre <strong>contraseña</strong> o <strong>clave privada PEM</strong>. La clave se analiza automáticamente (RSA, ECDSA, ED25519, DSA, OpenSSH, PKCS8).</p></div>
+    </li>
+    <li class="step-item">
+      <div class="step-num">4</div>
+      <div class="step-content"><h4>Verificación de huella</h4><p>El cliente calcula y muestra el fingerprint SHA-256 y MD5 de la clave privada para auditoría.</p></div>
+    </li>
+    <li class="step-item">
+      <div class="step-num">5</div>
+      <div class="step-content"><h4>Test de conectividad</h4><p>Llamada <code>POST /api/servers/test-connection</code> que verifica acceso SSH real antes de guardar.</p></div>
+    </li>
+    <li class="step-item">
+      <div class="step-num">6</div>
+      <div class="step-content"><h4>Guardar en Vault</h4><p>Las credenciales se cifran AES-256-CBC y persisten en <code>.linux_ai_ops.sqlite3</code>. El servidor queda disponible para todas las sesiones futuras.</p></div>
+    </li>
+  </ul>
+
+  <h2>Gestión de servidores</h2>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Acción</th><th>Descripción</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Conectar</strong></td><td>Establece sesión SSH y comienza polling de estado cada 6s</td></tr>
+          <tr><td><strong>Desconectar</strong></td><td>Marca servidor como offline, limpia caché de estado</td></tr>
+          <tr><td><strong>Seleccionar</strong></td><td>Activa el servidor en Dashboard e Intelligence Center</td></tr>
+          <tr><td><strong>Eliminar</strong></td><td>Borra del Vault y de la base de datos SQLite</td></tr>
+          <tr><td><strong>Limpiar unused</strong></td><td>Elimina masivamente servidores sin actividad reciente</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <!-- Status diagram SVG -->
+      <div class="chart-container">
+        <div class="chart-title">Estados de conexión</div>
+        <svg viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+          <!-- offline -->
+          <rect x="10" y="70" width="80" height="36" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+          <text x="50" y="84" text-anchor="middle" fill="#dc2626" font-size="9" font-weight="700" font-family="monospace">OFFLINE</text>
+          <text x="50" y="98" text-anchor="middle" fill="#f87171" font-size="7">no SSH / error</text>
+
+          <!-- connecting -->
+          <rect x="80" y="10" width="80" height="36" rx="8" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5"/>
+          <text x="120" y="24" text-anchor="middle" fill="#d97706" font-size="9" font-weight="700" font-family="monospace">CONNECTING</text>
+          <text x="120" y="38" text-anchor="middle" fill="#f59e0b" font-size="7">attempting SSH</text>
+
+          <!-- online -->
+          <rect x="150" y="70" width="80" height="36" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+          <text x="190" y="84" text-anchor="middle" fill="#059669" font-size="9" font-weight="700" font-family="monospace">ONLINE</text>
+          <text x="190" y="98" text-anchor="middle" fill="#22c55e" font-size="7">SSH ready</text>
+
+          <!-- Arrows -->
+          <path d="M90,86 L98,86" stroke="#374151" stroke-width="1.2" marker-end="url(#arrBlk)"/>
+          <path d="M142,88 L152,88" stroke="#374151" stroke-width="1.2" marker-end="url(#arrBlk)"/>
+          <path d="M120,46 L120,66" stroke="#374151" stroke-width="1.2" stroke-dasharray="3,2"/>
+          <text x="75" y="95" fill="#374151" font-size="7">connect()</text>
+          <text x="140" y="83" fill="#374151" font-size="7">success</text>
+
+          <!-- offline ← online (disconnect) -->
+          <path d="M150,106 Q120,150 90,106" stroke="#f87171" stroke-width="1" stroke-dasharray="3,2" fill="none" marker-end="url(#arrRed)"/>
+          <text x="118" y="148" text-anchor="middle" fill="#f87171" font-size="7">disconnect / error</text>
+
+          <defs>
+            <marker id="arrBlk" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto">
+              <path d="M0,0 L0,5 L6,2.5 z" fill="#374151"/>
+            </marker>
+            <marker id="arrRed" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto">
+              <path d="M0,0 L0,5 L6,2.5 z" fill="#f87171"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-box amber">
+    <div class="info-box-icon">⚠️</div>
+    <div class="info-box-content">
+      <strong>Seguridad de credenciales</strong>
+      <p>Las contraseñas y claves privadas nunca viajan en texto plano al cliente. En el Vault solo se almacena el nombre, host, puerto y tipo de auth. Las credenciales salen del servidor únicamente para establecer la conexión SSH.</p>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 3 — DASHBOARD
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 03</div>
+      <div class="chapter-title">Dashboard de Monitoreo</div>
+    </div>
+  </div>
+
+  <p>
+    El Dashboard centraliza toda la telemetría del servidor activo: métricas de hardware en tiempo real, procesos, servicios systemd y contenedores Docker. Los datos se sincronizan cada 6 segundos vía <code>GET /api/servers/:id/state</code>.
+  </p>
+
+  <h2>Panel de métricas principales</h2>
+
+  <!-- Metrics panels graphic -->
+  <div class="no-break">
+    <svg viewBox="0 0 700 90" xmlns="http://www.w3.org/2000/svg" style="width:100%; margin-bottom:16px;">
+      <defs>
+        <linearGradient id="cpuGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#059669" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#047857" stop-opacity="0.7"/>
+        </linearGradient>
+        <linearGradient id="ramGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#d97706" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#b45309" stop-opacity="0.7"/>
+        </linearGradient>
+        <linearGradient id="diskGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#2563eb" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.7"/>
+        </linearGradient>
+      </defs>
+
+      <!-- CPU Card -->
+      <rect x="0" y="0" width="135" height="85" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+      <text x="10" y="18" fill="#6b7280" font-size="7.5" font-family="monospace" font-weight="700" letter-spacing="1">CPU LOAD</text>
+      <text x="10" y="42" fill="#34d399" font-size="20" font-family="monospace" font-weight="700">42%</text>
+      <rect x="60" y="30" width="68" height="6" rx="3" fill="#1f2937"/>
+      <rect x="60" y="30" width="29" height="6" rx="3" fill="url(#cpuGrad)"/>
+      <text x="10" y="60" fill="#4b5563" font-size="7" font-family="monospace">Intel Xeon E5-2680</text>
+      <text x="10" y="74" fill="#4b5563" font-size="7" font-family="monospace">4 cores · 2.8 GHz</text>
+
+      <!-- RAM Card -->
+      <rect x="142" y="0" width="135" height="85" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+      <text x="152" y="18" fill="#6b7280" font-size="7.5" font-family="monospace" font-weight="700" letter-spacing="1">RAM USAGE</text>
+      <text x="152" y="42" fill="#fbbf24" font-size="20" font-family="monospace" font-weight="700">3.2 <tspan font-size="9">GB</tspan></text>
+      <rect x="202" y="30" width="68" height="6" rx="3" fill="#1f2937"/>
+      <rect x="202" y="30" width="44" height="6" rx="3" fill="url(#ramGrad)"/>
+      <text x="152" y="62" fill="#4b5563" font-size="7" font-family="monospace">de 8 GB totales</text>
+      <text x="152" y="74" fill="#4b5563" font-size="7" font-family="monospace">64% utilizado</text>
+
+      <!-- Disk Card -->
+      <rect x="284" y="0" width="135" height="85" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+      <text x="294" y="18" fill="#6b7280" font-size="7.5" font-family="monospace" font-weight="700" letter-spacing="1">DISK STORAGE</text>
+      <text x="294" y="42" fill="#60a5fa" font-size="20" font-family="monospace" font-weight="700">68%</text>
+      <rect x="344" y="30" width="68" height="6" rx="3" fill="#1f2937"/>
+      <rect x="344" y="30" width="46" height="6" rx="3" fill="url(#diskGrad)"/>
+      <text x="294" y="62" fill="#4b5563" font-size="7" font-family="monospace">capacidad utilizada</text>
+
+      <!-- Net Card -->
+      <rect x="426" y="0" width="135" height="85" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+      <text x="436" y="18" fill="#6b7280" font-size="7.5" font-family="monospace" font-weight="700" letter-spacing="1">NETWORK I/O</text>
+      <text x="436" y="42" fill="#60a5fa" font-size="18" font-family="monospace" font-weight="700">1.2 MB/s</text>
+      <text x="436" y="58" fill="#4b5563" font-size="7" font-family="monospace">RX: 800 KB/s</text>
+      <text x="436" y="70" fill="#4b5563" font-size="7" font-family="monospace">TX: 420 KB/s</text>
+
+      <!-- Temp Card -->
+      <rect x="568" y="0" width="132" height="85" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+      <text x="578" y="18" fill="#6b7280" font-size="7.5" font-family="monospace" font-weight="700" letter-spacing="1">CORE TEMP</text>
+      <text x="578" y="42" fill="#fb923c" font-size="20" font-family="monospace" font-weight="700">62°C</text>
+      <rect x="640" y="14" width="50" height="14" rx="4" fill="#0d2515"/>
+      <text x="665" y="25" text-anchor="middle" fill="#4ade80" font-size="7" font-family="monospace">NORMAL</text>
+      <text x="578" y="62" fill="#4b5563" font-size="7" font-family="monospace">Sensor: coretemp</text>
+    </svg>
+  </div>
+
+  <h2>Gráficos de actividad en tiempo real</h2>
+  <div class="two-col">
+    <div>
+      <h3>Live CPU Activity</h3>
+      <p>Historial de hasta 20 muestras visualizado como wave bar chart. Colores adaptativos: verde (&lt;60%), ámbar (60-85%), rojo (&gt;85%). Los datos se mantienen solo en memoria del navegador — se resetean al recargar.</p>
+    </div>
+    <div>
+      <h3>Memory Resource Commit</h3>
+      <p>Barra de progreso <em>commit charge</em> con valores absolutos en GB. Muestra <strong>used</strong> vs <strong>free available</strong> en tiempo real. Alimentado por <code>/proc/meminfo</code> vía SSH.</p>
+    </div>
+  </div>
+
+  <h2>Tabs del Dashboard</h2>
+
+  <table>
+    <thead>
+      <tr><th>Tab</th><th>Contenido</th><th>Acciones disponibles</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Monitor de Recursos</strong></td>
+        <td>CPU wave chart + RAM commit bar + métricas en tiempo real</td>
+        <td>Solo lectura — auto-refresh</td>
+      </tr>
+      <tr>
+        <td><strong>Procesos</strong></td>
+        <td>Tabla completa de procesos con PID, USER, CPU%, MEM%, TTY, COMMAND</td>
+        <td><span class="badge badge-red">SIGKILL</span> por PID individual</td>
+      </tr>
+      <tr>
+        <td><strong>Servicios</strong></td>
+        <td>Listado de unidades systemd/SysV/OpenRC con estado active/inactive</td>
+        <td><span class="badge badge-green">Restart</span> <span class="badge badge-amber">Stop</span> por servicio</td>
+      </tr>
+      <tr>
+        <td><strong>Docker Containers</strong></td>
+        <td>Contenedores con imagen, estado, puertos expuestos y uso de recursos</td>
+        <td><span class="badge badge-green">Start</span> <span class="badge badge-amber">Stop</span> por container</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Process table mockup -->
+  <div class="chart-container no-break" style="margin-top:20px;">
+    <div class="chart-title">Ejemplo — Vista de procesos</div>
+    <div style="background:#0f172a;border-radius:8px;padding:12px;font-family:monospace;font-size:8pt;">
+      <table style="width:100%;border-collapse:collapse;color:#e2e8f0;">
+        <thead>
+          <tr style="border-bottom:1px solid #1e293b;color:#64748b;font-size:7.5pt;">
+            <th style="padding:6px 8px;text-align:left;">PID</th>
+            <th style="padding:6px 8px;text-align:left;">USER</th>
+            <th style="padding:6px 8px;text-align:left;">CPU%</th>
+            <th style="padding:6px 8px;text-align:left;">MEM%</th>
+            <th style="padding:6px 8px;text-align:left;">TTY</th>
+            <th style="padding:6px 8px;text-align:left;">COMMAND</th>
+            <th style="padding:6px 8px;text-align:right;">OP.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:5px 8px;color:#94a3b8;">1</td>
+            <td style="padding:5px 8px;font-weight:600;">root</td>
+            <td style="padding:5px 8px;color:#34d399;">0.0%</td>
+            <td style="padding:5px 8px;color:#fbbf24;">0.2%</td>
+            <td style="padding:5px 8px;color:#64748b;">?</td>
+            <td style="padding:5px 8px;color:#e2e8f0;">/usr/lib/systemd/systemd</td>
+            <td style="padding:5px 8px;text-align:right;"><span style="background:#450a0a;border:1px solid #7f1d1d;color:#f87171;padding:2px 6px;border-radius:3px;font-size:7pt;">SIGKILL</span></td>
+          </tr>
+          <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:5px 8px;color:#94a3b8;">1243</td>
+            <td style="padding:5px 8px;font-weight:600;">www-data</td>
+            <td style="padding:5px 8px;color:#34d399;">2.1%</td>
+            <td style="padding:5px 8px;color:#fbbf24;">4.8%</td>
+            <td style="padding:5px 8px;color:#64748b;">?</td>
+            <td style="padding:5px 8px;color:#e2e8f0;">nginx: worker process</td>
+            <td style="padding:5px 8px;text-align:right;"><span style="background:#450a0a;border:1px solid #7f1d1d;color:#f87171;padding:2px 6px;border-radius:3px;font-size:7pt;">SIGKILL</span></td>
+          </tr>
+          <tr>
+            <td style="padding:5px 8px;color:#94a3b8;">2891</td>
+            <td style="padding:5px 8px;font-weight:600;">mysql</td>
+            <td style="padding:5px 8px;color:#fbbf24;">8.3%</td>
+            <td style="padding:5px 8px;color:#f87171;">18.2%</td>
+            <td style="padding:5px 8px;color:#64748b;">?</td>
+            <td style="padding:5px 8px;color:#e2e8f0;">/usr/sbin/mysqld</td>
+            <td style="padding:5px 8px;text-align:right;"><span style="background:#450a0a;border:1px solid #7f1d1d;color:#f87171;padding:2px 6px;border-radius:3px;font-size:7pt;">SIGKILL</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 4 — INTELLIGENCE CENTER
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 04</div>
+      <div class="chapter-title">Intelligence Center</div>
+    </div>
+  </div>
+
+  <p>
+    El Intelligence Center agrupa en 4 tabs la interacción avanzada con el servidor: terminal SSH interactiva, visor de logs del sistema, explorador y editor SFTP, y auditoría de seguridad CIS. Cada tab se activa sin recargar estado — comparten la misma sesión SSH.
+  </p>
+
+  <!-- 4 tabs overview -->
+  <div class="feature-grid" style="grid-template-columns: repeat(4,1fr);">
+    <div class="feature-card" style="border-top:3px solid #059669;">
+      <div class="feature-card-icon" style="background:#f0fdf4;">💻</div>
+      <h4>Bash Console</h4>
+      <p>Terminal SSH con historial de comandos, escalación root/sudo, output capeado a 500 KB.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #2563eb;">
+      <div class="feature-card-icon" style="background:#eff6ff;">📋</div>
+      <h4>SysLog</h4>
+      <p>Logs del sistema con filtros por nivel (all/error/warning/info) y diagnóstico IA.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #7c3aed;">
+      <div class="feature-card-icon" style="background:#fdf4ff;">📁</div>
+      <h4>SFTP Browser</h4>
+      <p>Explorador de archivos con upload/download, editor online y explicación IA del código.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #dc2626;">
+      <div class="feature-card-icon" style="background:#fef2f2;">🛡️</div>
+      <h4>Security</h4>
+      <p>Auditoría CIS con 22 controles, clasificación PASS/FAIL/WARN, comandos de remediación.</p>
+    </div>
+  </div>
+
+  <h2>4.1 Terminal Bash (SSH)</h2>
+
+  <p>La consola es una réplica funcional de una terminal bash remota. Soporta:</p>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Función</th><th>Descripción</th></tr></thead>
+        <tbody>
+          <tr><td>Historial ↑↓</td><td>Navegación por comandos previos de la sesión</td></tr>
+          <tr><td>CWD tracking</td><td>Rastreo del directorio actual tras cada <code>cd</code></td></tr>
+          <tr><td>Output cap</td><td>500 KB máx. por comando; truncado con aviso</td></tr>
+          <tr><td>2000 líneas</td><td>Buffer circular — las más antiguas se descartan</td></tr>
+          <tr><td>Escalación su</td><td>Modal de contraseña → sesión root persistente</td></tr>
+          <tr><td>Escalación sudo</td><td>Modal por comando — no persiste credenciales</td></tr>
+          <tr><td>Color coding</td><td>stdout: blanco · stderr: rojo · system: cyan</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <!-- Terminal mockup -->
+      <div style="background:#050505;border-radius:8px;padding:14px;border:1px solid #1e293b;font-family:monospace;font-size:8pt;line-height:1.6;">
+        <div style="color:#64748b;margin-bottom:8px;font-size:7pt;">Linux AI Ops Smart Console [v1.0.0]</div>
+        <div><span style="color:#6ee7b7;">[prod-01:~]$</span> <span style="color:#e2e8f0;">df -h</span></div>
+        <div style="color:#94a3b8;">Filesystem      Size  Used Avail Use%</div>
+        <div style="color:#94a3b8;">/dev/sda1        80G   54G   26G  68%  /</div>
+        <div style="margin-top:6px;"><span style="color:#6ee7b7;">[prod-01:~]$</span> <span style="color:#e2e8f0;">systemctl status nginx</span></div>
+        <div style="color:#34d399;">● nginx.service - nginx HTTP Server</div>
+        <div style="color:#94a3b8;">   Active: <span style="color:#4ade80;">active (running)</span></div>
+        <div style="margin-top:6px;"><span style="color:#6ee7b7;">[prod-01:~]$</span> <span style="color:#94a3b8;animation:blink 1s step-end infinite">█</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>4.2 SFTP Browser</h2>
+
+  <div class="screenshot-container">
+    <img src="ss_sftp.png" alt="SFTP Browser tab" />
+    <div class="screenshot-caption">Fig. 4.1 — SFTP Browser. Explorador de directorios con upload drag-and-drop y editor inline.</div>
+  </div>
+
+  <p>El SFTP Browser navega el sistema de archivos del servidor remoto mediante la API <code>/api/servers/:id/sftp/*</code>. Características principales:</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h4>Navegación de directorios</h4>
+      <p>Listado con tipo (archivo/directorio), tamaño, permisos y fecha de modificación. Breadcrumb clickeable.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Upload con cola</h4>
+      <p>Hasta 3 uploads concurrentes. Barra de progreso individual, velocidad en bytes/s, cancelable con XHR abort.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Download inteligente</h4>
+      <p>Archivos &lt;500 MB: descarga buffereada. Archivos ≥500 MB: redirección al endpoint nativo del browser.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Editor inline</h4>
+      <p>Abre archivos de texto directamente en el browser. Edita y guarda con <code>PUT /api/servers/:id/sftp/put</code>.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Explicación IA</h4>
+      <p>Botón "Explicar con IA" envía el contenido del archivo a OpenRouter para obtener descripción en español.</p>
+    </div>
+    <div class="feature-card">
+      <h4>Límites de seguridad</h4>
+      <p>El editor carga máx. 100 KB. Archivos binarios o de gran tamaño se descargan directamente.</p>
+    </div>
+  </div>
+
+  <h2>4.3 Security — Auditoría CIS Hardening</h2>
+
+  <div class="screenshot-container">
+    <img src="ss_security.png" alt="Security tab — Hardening Scan" />
+    <div class="screenshot-caption">Fig. 4.2 — Security tab. Vista vacía antes de ejecutar el escaneo de hardening.</div>
+  </div>
+
+  <p>El módulo de seguridad ejecuta un script bash de una sola pasada SSH que recopila 23 parámetros del sistema y los evalúa contra controles CIS Benchmark y NIST 800-53.</p>
+
+  <table class="policy-table">
+    <thead>
+      <tr><th>ID</th><th>Control</th><th>Severidad</th><th>Compliance</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>SSH-001</code></td><td>Root login SSH deshabilitado</td><td class="risk-high">HIGH</td><td>CIS 5.2.8 · NIST AC-6</td></tr>
+      <tr><td><code>SSH-002</code></td><td>Autenticación por contraseña deshabilitada</td><td class="risk-high">HIGH</td><td>CIS 5.2.13 · NIST IA-5</td></tr>
+      <tr><td><code>SSH-003</code></td><td>Timeout sesión inactiva ≤300s</td><td class="risk-medium">MEDIUM</td><td>CIS 5.2.12</td></tr>
+      <tr><td><code>SSH-004</code></td><td>MaxAuthTries ≤4</td><td class="risk-medium">MEDIUM</td><td>CIS 5.2.7</td></tr>
+      <tr><td><code>SSH-005</code></td><td>PermitEmptyPasswords = no</td><td class="risk-high">HIGH</td><td>CIS 5.2.9</td></tr>
+      <tr><td><code>SSH-006</code></td><td>X11 Forwarding deshabilitado</td><td class="risk-low">LOW</td><td>CIS 5.2.6</td></tr>
+      <tr><td><code>FW-001</code></td><td>Firewall activo (UFW / firewalld)</td><td class="risk-high">HIGH</td><td>CIS 3.5</td></tr>
+      <tr><td><code>FW-002</code></td><td>Reglas DROP/REJECT en iptables INPUT</td><td class="risk-medium">MEDIUM</td><td>NIST SC-7</td></tr>
+      <tr><td><code>OS-001</code></td><td>ASLR habilitado (=2)</td><td class="risk-high">HIGH</td><td>CIS 1.5.3</td></tr>
+      <tr><td><code>OS-002</code></td><td>SELinux / AppArmor activo</td><td class="risk-high">HIGH</td><td>CIS 1.6</td></tr>
+      <tr><td><code>OS-003</code></td><td>IP forwarding deshabilitado</td><td class="risk-medium">MEDIUM</td><td>CIS 3.1.1</td></tr>
+      <tr><td><code>OS-004</code></td><td>Suid core dumps deshabilitados</td><td class="risk-medium">MEDIUM</td><td>CIS 1.5.1</td></tr>
+      <tr><td><code>ACC-001</code></td><td>Sin usuarios UID=0 adicionales a root</td><td class="risk-high">HIGH</td><td>CIS 5.4.2</td></tr>
+      <tr><td><code>ACC-002</code></td><td>Sin entradas NOPASSWD en sudoers</td><td class="risk-high">HIGH</td><td>NIST AC-6</td></tr>
+      <tr><td><code>ACC-003</code></td><td>Sin contraseñas vacías o débiles</td><td class="risk-high">HIGH</td><td>CIS 6.2.1</td></tr>
+      <tr><td><code>FS-001</code></td><td>Sin archivos world-writable en /etc, /bin</td><td class="risk-medium">MEDIUM</td><td>CIS 6.1.10</td></tr>
+      <tr><td><code>FS-002</code></td><td>Archivos SUID innecesarios</td><td class="risk-medium">MEDIUM</td><td>CIS 6.1.13</td></tr>
+      <tr><td><code>SVC-001</code></td><td>Sin servicios inseguros (telnet, rsh, tftp)</td><td class="risk-high">HIGH</td><td>CIS 2.1</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 5 — AGENT COPILOT
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 05</div>
+      <div class="chapter-title">Multiagente Copilot IA</div>
+    </div>
+  </div>
+
+  <p>
+    El <strong>Multiagente Copilot</strong> es el componente estrella de la plataforma. Integra OpenRouter para convertir instrucciones en lenguaje natural en planes de ejecución auditables. Cada plan se presenta paso a paso con nivel de riesgo y requiere aprobación explícita del operador antes de ejecutar comandos sensibles.
+  </p>
+
+  <h2>Agentes disponibles</h2>
+
+  <div class="feature-grid" style="grid-template-columns: repeat(5,1fr); gap:12px;">
+    <div class="feature-card" style="border-top:3px solid #059669; padding:12px;">
+      <div style="font-size:20px; margin-bottom:8px;">🖥️</div>
+      <h4>SysAdmin</h4>
+      <p style="font-size:8pt;">Disco, CPU, procesos núcleo, systemd.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #dc2626; padding:12px;">
+      <div style="font-size:20px; margin-bottom:8px;">🛡️</div>
+      <h4>Security</h4>
+      <p style="font-size:8pt;">Vulnerabilidades, SSH, UFW, fail2ban.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #2563eb; padding:12px;">
+      <div style="font-size:20px; margin-bottom:8px;">⚙️</div>
+      <h4>DevOps</h4>
+      <p style="font-size:8pt;">CI/CD, Ansible, git, despliegues.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #7c3aed; padding:12px;">
+      <div style="font-size:20px; margin-bottom:8px;">🐳</div>
+      <h4>Docker</h4>
+      <p style="font-size:8pt;">Containers, Compose, Portainer.</p>
+    </div>
+    <div class="feature-card" style="border-top:3px solid #d97706; padding:12px;">
+      <div style="font-size:20px; margin-bottom:8px;">📊</div>
+      <h4>Monitoring</h4>
+      <p style="font-size:8pt;">Logs, alertas, diagnóstico RAM/CPU.</p>
+    </div>
+  </div>
+
+  <h2>Modos de control de autonomía</h2>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Modo</th><th>Comportamiento</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-blue">Sugerencia</span></td>
+            <td>Solo genera el plan. Nunca ejecuta comandos sin que el usuario cambie de modo. Ideal para explorar opciones.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-amber">Semi-Autónomo</span></td>
+            <td>Ejecuta automáticamente pasos de riesgo <strong>low</strong>. Los de riesgo <strong>medium</strong> y <strong>high</strong> requieren aprobación individual.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-red">Totalmente Autónomo</span></td>
+            <td>Ejecuta todos los pasos del plan sin interrupciones. Requiere confianza máxima en el agente.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <!-- Risk funnel chart -->
+      <div class="chart-title">Flujo de aprobación de comandos</div>
+      <svg viewBox="0 0 220 200" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+        <!-- AI generates plan -->
+        <rect x="50" y="10" width="120" height="28" rx="6" fill="#1e3a5f"/>
+        <text x="110" y="29" text-anchor="middle" fill="#93c5fd" font-size="8.5" font-family="sans-serif" font-weight="600">AI genera plan (JSON)</text>
+        <line x1="110" y1="38" x2="110" y2="52" stroke="#374151" stroke-width="1.5" marker-end="url(#arrGray)"/>
+
+        <!-- Risk analysis -->
+        <rect x="50" y="52" width="120" height="28" rx="6" fill="#1e2d1e"/>
+        <text x="110" y="68" text-anchor="middle" fill="#86efac" font-size="8.5" font-family="sans-serif" font-weight="600">analyzeCommandRisk()</text>
+        <text x="110" y="78" text-anchor="middle" fill="#4ade80" font-size="7" font-family="monospace">Keyword pattern match</text>
+
+        <!-- Three branches -->
+        <line x1="80" y1="80" x2="35" y2="110" stroke="#6b7280" stroke-width="1" stroke-dasharray="2,2"/>
+        <line x1="110" y1="80" x2="110" y2="110" stroke="#6b7280" stroke-width="1" stroke-dasharray="2,2"/>
+        <line x1="140" y1="80" x2="175" y2="110" stroke="#6b7280" stroke-width="1" stroke-dasharray="2,2"/>
+
+        <!-- LOW -->
+        <rect x="5" y="110" width="56" height="22" rx="5" fill="#0d2515"/>
+        <text x="33" y="125" text-anchor="middle" fill="#4ade80" font-size="8" font-family="monospace" font-weight="700">LOW</text>
+
+        <!-- MEDIUM -->
+        <rect x="80" y="110" width="60" height="22" rx="5" fill="#1c1502"/>
+        <text x="110" y="125" text-anchor="middle" fill="#fbbf24" font-size="8" font-family="monospace" font-weight="700">MEDIUM</text>
+
+        <!-- HIGH -->
+        <rect x="150" y="110" width="56" height="22" rx="5" fill="#1c0505"/>
+        <text x="178" y="125" text-anchor="middle" fill="#f87171" font-size="8" font-family="monospace" font-weight="700">HIGH</text>
+
+        <!-- Auto execute / confirm labels -->
+        <text x="33" y="148" text-anchor="middle" fill="#4ade80" font-size="7" font-family="sans-serif">Auto exec</text>
+        <text x="33" y="158" text-anchor="middle" fill="#4ade80" font-size="7">(Semi-Auto)</text>
+
+        <text x="110" y="148" text-anchor="middle" fill="#fbbf24" font-size="7" font-family="sans-serif">Confirmar</text>
+        <text x="110" y="158" text-anchor="middle" fill="#fbbf24" font-size="7">cada paso</text>
+
+        <text x="178" y="148" text-anchor="middle" fill="#f87171" font-size="7" font-family="sans-serif">Confirmar</text>
+        <text x="178" y="158" text-anchor="middle" fill="#f87171" font-size="7">explícito</text>
+
+        <!-- Converge to execute -->
+        <line x1="110" y1="165" x2="110" y2="180" stroke="#374151" stroke-width="1.5" marker-end="url(#arrGray)"/>
+        <rect x="60" y="180" width="100" height="20" rx="5" fill="#111827"/>
+        <text x="110" y="194" text-anchor="middle" fill="#e2e8f0" font-size="8" font-family="sans-serif">SSH exec + log</text>
+
+        <defs>
+          <marker id="arrGray" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto">
+            <path d="M0,0 L0,5 L6,2.5 z" fill="#374151"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+
+  <h2>Contrato JSON de respuesta IA</h2>
+
+  <p>El endpoint <code>POST /api/openrouter/run-agent</code> espera que el modelo devuelva exactamente este formato. El parser <code>tryParseJson()</code> tolera respuestas envueltas en markdown (```json … ```):</p>
+
+  <pre><span class="c">// Estructura del plan generado por OpenRouter</span>
+{
+  <span class="k">"explanation"</span>: <span class="s">"Diagnóstico completo de disco y filesystem del servidor."</span>,
+  <span class="k">"riskLevel"</span>:   <span class="s">"low"</span>,              <span class="c">// low | medium | high</span>
+  <span class="k">"steps"</span>: [
+    {
+      <span class="k">"id"</span>:          <span class="s">"step-1"</span>,
+      <span class="k">"title"</span>:       <span class="s">"Uso de disco por partición"</span>,
+      <span class="k">"description"</span>: <span class="s">"Lista el espacio libre y usado en todas las particiones."</span>,
+      <span class="k">"command"</span>:     <span class="s">"df -h"</span>,
+      <span class="k">"risk"</span>:        <span class="s">"low"</span>
+    },
+    {
+      <span class="k">"id"</span>:          <span class="s">"step-2"</span>,
+      <span class="k">"title"</span>:       <span class="s">"Top 10 directorios más grandes"</span>,
+      <span class="k">"command"</span>:     <span class="s">"du -sh /* 2>/dev/null | sort -rh | head -10"</span>,
+      <span class="k">"risk"</span>:        <span class="s">"low"</span>
+    }
+  ],
+  <span class="k">"reportSummary"</span>: <span class="s">"El sistema tiene 68% de disco usado en /dev/sda1. Se recomienda..."</span>
+}</pre>
+
+  <div class="info-box blue">
+    <div class="info-box-icon">💡</div>
+    <div class="info-box-content">
+      <strong>Fallback sin API key</strong>
+      <p>Si <code>OPENROUTER_API_KEY</code> no está configurada, el servidor usa <code>generateSimulatedAgentAction()</code> que devuelve un plan cableado según el rol activo. La interfaz funciona completamente en modo demostración.</p>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 6 — API REST
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 06</div>
+      <div class="chapter-title">API REST</div>
+    </div>
+  </div>
+
+  <p>Todos los endpoints sirven y consumen JSON. El servidor corre en <code>http://localhost:3005</code> por defecto. No hay autenticación — diseñado para uso en red local o detrás de un proxy inverso con auth.</p>
+
+  <h2>Servidores y conexiones</h2>
+
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/servers</span><span class="endpoint-desc">Lista todos los servidores del vault</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers</span><span class="endpoint-desc">Registra un nuevo servidor (name, host, port, username, authType, password?, privateKey?)</span></div>
+  <div class="endpoint"><span class="method method-del">DELETE</span><span class="endpoint-path">/api/servers/:id</span><span class="endpoint-desc">Elimina servidor del vault y de SQLite</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/:id/connect</span><span class="endpoint-desc">Marca servidor como conectando e inicia SSH</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/:id/disconnect</span><span class="endpoint-desc">Desconecta y limpia caché de estado</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/test-connection</span><span class="endpoint-desc">Verifica credenciales SSH sin guardar</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/cleanup-unused</span><span class="endpoint-desc">Elimina masivamente servidores sin actividad</span></div>
+
+  <h2>Estado y telemetría</h2>
+
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/servers/:id/state</span><span class="endpoint-desc">Estado completo: server, processes, services, docker, logs, cronJobs, securityAssets (cacheado 30s)</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/:id/execute</span><span class="endpoint-desc">Ejecuta comando SSH → { stdout, stderr, exitCode, riskLevel }</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/servers/:id/sftp/ls</span><span class="endpoint-desc">Lista directorio SFTP (?path=…) → { entries[] }</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/servers/:id/sftp/get</span><span class="endpoint-desc">Descarga archivo (?path=…) → stream binario</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/:id/sftp/put</span><span class="endpoint-desc">Sube o actualiza archivo (multipart/form-data)</span></div>
+
+  <h2>Seguridad y AI</h2>
+
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/servers/:id/hardening-scan</span><span class="endpoint-desc">Ejecuta script CIS bash → { policies[], summary }</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/openrouter/run-agent</span><span class="endpoint-desc">Genera plan de acción IA → { explanation, riskLevel, steps[], reportSummary }</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/openrouter/status</span><span class="endpoint-desc">Verifica conexión a OpenRouter → { connected, model }</span></div>
+
+  <h2>Ejemplo de respuesta — /api/servers/:id/state</h2>
+  <pre><span class="c">// GET /api/servers/srv-abc123/state</span>
+{
+  <span class="k">"server"</span>: {
+    <span class="k">"id"</span>: <span class="s">"srv-abc123"</span>,
+    <span class="k">"name"</span>: <span class="s">"prod-01"</span>,
+    <span class="k">"host"</span>: <span class="s">"192.168.1.100"</span>,
+    <span class="k">"status"</span>: <span class="s">"online"</span>,
+    <span class="k">"cpuUsage"</span>: <span class="v">42</span>,
+    <span class="k">"ramUsage"</span>: <span class="v">3.2</span>,  <span class="c">// GB</span>
+    <span class="k">"ramTotal"</span>: <span class="v">8</span>,    <span class="c">// GB</span>
+    <span class="k">"diskUsage"</span>: <span class="v">68</span>,  <span class="c">// %</span>
+    <span class="k">"temperature"</span>: <span class="v">62</span>, <span class="c">// °C</span>
+    <span class="k">"uptime"</span>: <span class="s">"up 48 weeks, 1 day"</span>,
+    <span class="k">"osName"</span>: <span class="s">"CentOS Linux 7 (Core)"</span>,
+    <span class="k">"rxRate"</span>: <span class="v">800</span>, <span class="k">"txRate"</span>: <span class="v">420</span>  <span class="c">// KB/s</span>
+  },
+  <span class="k">"processes"</span>:       [<span class="c">/* LinuxProcess[] */</span>],
+  <span class="k">"services"</span>:        [<span class="c">/* SystemService[] */</span>],
+  <span class="k">"dockerContainers"</span>:[<span class="c">/* DockerContainer[] */</span>],
+  <span class="k">"logs"</span>:            [<span class="c">/* LogLine[] */</span>],
+  <span class="k">"cronJobs"</span>:        [<span class="c">/* CronJob[] */</span>],
+  <span class="k">"securityAssets"</span>:  [<span class="c">/* SecurityAsset[] */</span>]
+}</pre>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 7 — CONFIGURATION
+══════════════════════════════════════════════ -->
+<div class="content-page page-break">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M4.93 4.93a10 10 0 0 0 14.14 14.14"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 07</div>
+      <div class="chapter-title">Configuración y Despliegue</div>
+    </div>
+  </div>
+
+  <h2>Variables de entorno</h2>
+  <table>
+    <thead><tr><th>Variable</th><th>Requerida</th><th>Por defecto</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><code>OPENROUTER_API_KEY</code></td><td><span class="badge badge-green">No</span></td><td>—</td><td>Activa IA real. Sin ella usa respuestas simuladas.</td></tr>
+      <tr><td><code>OPENROUTER_MODEL</code></td><td><span class="badge badge-green">No</span></td><td><code>gpt-4.1-mini</code></td><td>Modelo de IA. Puede ser cualquier modelo de OpenRouter.</td></tr>
+      <tr><td><code>OPENROUTER_API_BASE</code></td><td><span class="badge badge-green">No</span></td><td><code>https://openrouter.ai/api/v1</code></td><td>URL base de OpenRouter (override para proxies).</td></tr>
+      <tr><td><code>STORAGE_DB_PATH</code></td><td><span class="badge badge-green">No</span></td><td><code>.linux_ai_ops.sqlite3</code></td><td>Ruta del archivo SQLite con credenciales cifradas.</td></tr>
+      <tr><td><code>PORT</code></td><td><span class="badge badge-green">No</span></td><td><code>3005</code></td><td>Puerto HTTP del servidor Express.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Instalación y arranque</h2>
+  <pre><span class="c"># 1. Clonar y preparar</span>
+git clone &lt;repo&gt; linux-ai-ops-studio
+cd linux-ai-ops-studio
+
+<span class="c"># 2. Instalar dependencias</span>
+npm install
+
+<span class="c"># 3. Configurar entorno (opcional)</span>
+cp .env.example .env
+<span class="c"># Editar .env y añadir OPENROUTER_API_KEY</span>
+
+<span class="c"># 4. Desarrollo (Vite + Express en un proceso)</span>
+npm run dev
+<span class="c"># → http://localhost:3005</span>
+
+<span class="c"># 5. Producción</span>
+npm run build   <span class="c"># Genera dist/ (frontend) + dist/server.cjs (backend)</span>
+npm start       <span class="c"># Sirve dist/ como estáticos</span></pre>
+
+  <h2>Estructura de archivos del proyecto</h2>
+  <pre>linux-ai-ops-studio/
+├── server.ts              <span class="c"># Backend Express completo (monolítico)</span>
+├── src/
+│   ├── App.tsx            <span class="c"># Root: state, polling, callbacks</span>
+│   ├── types.ts           <span class="c"># Tipos compartidos (no hay otras compartidas)</span>
+│   └── components/
+│       ├── SSHConnectionManager.tsx   <span class="c"># Vault + wizard 6 pasos</span>
+│       ├── Dashboard.tsx              <span class="c"># Telemetría + procesos/servicios/docker</span>
+│       ├── IntelligenceCenter.tsx     <span class="c"># Terminal + logs + SFTP + security</span>
+│       ├── AgentOpsStudio.tsx         <span class="c"># Multiagente IA copilot</span>
+│       └── MetricsGraphics.tsx        <span class="c"># CPUUsageMeter, RAMUsageMeter, CircularProgress</span>
+├── .linux_ai_ops.sqlite3  <span class="c"># DB en tiempo de ejecución (gitignored)</span>
+├── .env                   <span class="c"># Variables de entorno (gitignored)</span>
+├── vite.config.ts
+├── tailwind.config.ts
+└── tsconfig.json</pre>
+
+  <h2>Verificación de tipos</h2>
+  <pre>npm run lint   <span class="c"># tsc --noEmit — sin test suite, esto es la única validación estática</span></pre>
+
+  <div class="info-box amber">
+    <div class="info-box-icon">⚠️</div>
+    <div class="info-box-content">
+      <strong>Nota de producción</strong>
+      <p>El estado en memoria (<code>db</code>) se resetea al reiniciar el servidor, excepto las conexiones que se recargan desde SQLite. Para persistencia completa de logs, procesos, etc., se requeriría una base de datos externa.</p>
+    </div>
+  </div>
+
+  <h2>Modos de ejecución SSH</h2>
+  <div class="two-col">
+    <div class="info-box blue" style="margin:0;">
+      <div class="info-box-icon">🎭</div>
+      <div class="info-box-content">
+        <strong>Modo simulado</strong>
+        <p>Se activa automáticamente cuando el host es <code>192.168.1.10</code> o <code>192.168.1.12</code> (IPs mock) o cuando no hay credenciales. <code>runSimulatedCommand()</code> devuelve respuestas cableadas para los comandos más comunes de Linux.</p>
+      </div>
+    </div>
+    <div class="info-box green" style="margin:0;">
+      <div class="info-box-icon">🔌</div>
+      <div class="info-box-content">
+        <strong>Modo SSH real</strong>
+        <p>Para cualquier otro host con credenciales válidas. Usa la librería <code>ssh2</code> para ejecutar comandos reales. Compatible con CentOS 7, Ubuntu 20/22, Debian 11/12, RHEL 8/9.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CHAPTER 8 — SECURITY HARDENING CHART
+══════════════════════════════════════════════ -->
+<div class="content-page">
+
+  <div class="chapter-header">
+    <div class="chapter-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <div class="chapter-meta">
+      <div class="chapter-num">Capítulo 08</div>
+      <div class="chapter-title">Auditoría de Seguridad — CIS Hardening</div>
+    </div>
+  </div>
+
+  <p>
+    El módulo de hardening ejecuta 22 comprobaciones en una sola llamada SSH. El script bash recoge los valores en crudo y el servidor los normaliza a objetos <code>HardeningPolicy</code> con PASS/FAIL/WARN, risk_score (0-100) y comandos de remediación listos para copiar y ejecutar.
+  </p>
+
+  <!-- Categories bar chart -->
+  <div class="chart-container no-break">
+    <div class="chart-title">Categorías de control — distribución de checks</div>
+    <svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+      <!-- Grid lines -->
+      <line x1="120" y1="20" x2="120" y2="165" stroke="#e5e7eb" stroke-width="0.5"/>
+      <line x1="120" y1="165" x2="620" y2="165" stroke="#e5e7eb" stroke-width="1"/>
+      <!-- Y grid -->
+      <line x1="120" y1="140" x2="620" y2="140" stroke="#f3f4f6" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <line x1="120" y1="110" x2="620" y2="110" stroke="#f3f4f6" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <line x1="120" y1="80" x2="620" y2="80" stroke="#f3f4f6" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <line x1="120" y1="50" x2="620" y2="50" stroke="#f3f4f6" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <!-- Y labels -->
+      <text x="115" y="168" text-anchor="end" fill="#9ca3af" font-size="7" font-family="monospace">0</text>
+      <text x="115" y="143" text-anchor="end" fill="#9ca3af" font-size="7" font-family="monospace">2</text>
+      <text x="115" y="113" text-anchor="end" fill="#9ca3af" font-size="7" font-family="monospace">4</text>
+      <text x="115" y="83"  text-anchor="end" fill="#9ca3af" font-size="7" font-family="monospace">6</text>
+      <text x="115" y="53"  text-anchor="end" fill="#9ca3af" font-size="7" font-family="monospace">8</text>
+
+      <!-- SSH Hardening — 6 checks -->
+      <rect x="130" y="80" width="70" height="85" rx="3" fill="#2563eb" opacity="0.85"/>
+      <text x="165" y="77" text-anchor="middle" fill="#2563eb" font-size="9" font-weight="700">6</text>
+      <text x="165" y="178" text-anchor="middle" fill="#374151" font-size="8">SSH</text>
+      <text x="165" y="188" text-anchor="middle" fill="#6b7280" font-size="7">Hardening</text>
+
+      <!-- Firewall — 3 checks -->
+      <rect x="215" y="122" width="70" height="43" rx="3" fill="#059669" opacity="0.85"/>
+      <text x="250" y="119" text-anchor="middle" fill="#059669" font-size="9" font-weight="700">3</text>
+      <text x="250" y="178" text-anchor="middle" fill="#374151" font-size="8">Firewall</text>
+      <text x="250" y="188" text-anchor="middle" fill="#6b7280" font-size="7">UFW/iptables</text>
+
+      <!-- OS Security — 4 checks -->
+      <rect x="300" y="100" width="70" height="65" rx="3" fill="#7c3aed" opacity="0.85"/>
+      <text x="335" y="97" text-anchor="middle" fill="#7c3aed" font-size="9" font-weight="700">4</text>
+      <text x="335" y="178" text-anchor="middle" fill="#374151" font-size="8">OS Kernel</text>
+      <text x="335" y="188" text-anchor="middle" fill="#6b7280" font-size="7">ASLR/SELinux</text>
+
+      <!-- Access Control — 3 checks -->
+      <rect x="385" y="122" width="70" height="43" rx="3" fill="#dc2626" opacity="0.85"/>
+      <text x="420" y="119" text-anchor="middle" fill="#dc2626" font-size="9" font-weight="700">3</text>
+      <text x="420" y="178" text-anchor="middle" fill="#374151" font-size="8">Acceso</text>
+      <text x="420" y="188" text-anchor="middle" fill="#6b7280" font-size="7">UID0/sudo</text>
+
+      <!-- Filesystem — 2 checks -->
+      <rect x="470" y="140" width="70" height="25" rx="3" fill="#d97706" opacity="0.85"/>
+      <text x="505" y="137" text-anchor="middle" fill="#d97706" font-size="9" font-weight="700">2</text>
+      <text x="505" y="178" text-anchor="middle" fill="#374151" font-size="8">Filesystem</text>
+      <text x="505" y="188" text-anchor="middle" fill="#6b7280" font-size="7">SUID/World-W</text>
+
+      <!-- Services — 1 check -->
+      <rect x="555" y="152" width="58" height="13" rx="3" fill="#374151" opacity="0.85"/>
+      <text x="584" y="149" text-anchor="middle" fill="#374151" font-size="9" font-weight="700">1</text>
+      <text x="584" y="178" text-anchor="middle" fill="#374151" font-size="8">Servicios</text>
+      <text x="584" y="188" text-anchor="middle" fill="#6b7280" font-size="7">inseguros</text>
+    </svg>
+  </div>
+
+  <!-- Risk score donut -->
+  <div class="two-col" style="margin-top:28px;">
+    <div>
+      <h2>Niveles de severidad</h2>
+      <p>Cada control tiene un <strong>risk_score</strong> de 0 a 100. Los controles con FAIL suman al puntaje total de riesgo del servidor.</p>
+      <table>
+        <thead><tr><th>Severidad</th><th>risk_score FAIL</th><th>Categoría</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-red">HIGH</span></td><td>70–95 puntos</td><td>SSH, Firewall, ASLR, Cuentas</td></tr>
+          <tr><td><span class="badge badge-amber">MEDIUM</span></td><td>40–65 puntos</td><td>Timeouts, Permisos, Kernel params</td></tr>
+          <tr><td><span class="badge badge-blue">LOW</span></td><td>10–30 puntos</td><td>X11, Configuraciones menores</td></tr>
+        </tbody>
+      </table>
+
+      <h2 style="margin-top:20px;">Remediación asistida</h2>
+      <p>Para cada control con FAIL, el sistema proporciona el comando exacto de corrección:</p>
+      <pre style="font-size:7.5pt;margin-top:8px;"><span class="c"># SSH-001: Deshabilitar root login</span>
+sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' \
+  /etc/ssh/sshd_config
+systemctl restart sshd
+
+<span class="c"># SSH-002: Deshabilitar auth por contraseña</span>
+sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' \
+  /etc/ssh/sshd_config
+systemctl restart sshd</pre>
+    </div>
+
+    <div>
+      <!-- Pie chart - compliance frameworks -->
+      <div class="chart-title">Frameworks de compliance cubiertos</div>
+      <svg viewBox="0 0 220 200" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+        <!-- Donut chart manual -->
+        <!-- CIS: 13/22 = 59% → 0 to 212 degrees -->
+        <path d="M110,100 L110,30 A80,80 0 1 1 54.3,165.1 Z" fill="#2563eb" opacity="0.85"/>
+        <!-- NIST: 7/22 = 32% → 212 to 327 degrees -->
+        <path d="M110,100 L54.3,165.1 A80,80 0 0 1 110,30" fill="#059669" opacity="0.85"/>
+        <!-- Internal circle (donut hole) -->
+        <circle cx="110" cy="100" r="48" fill="white"/>
+        <text x="110" y="96" text-anchor="middle" fill="#1a1a2e" font-size="18" font-weight="800">22</text>
+        <text x="110" y="112" text-anchor="middle" fill="#6b7280" font-size="8">controles</text>
+
+        <!-- Legend -->
+        <rect x="20" y="165" width="10" height="10" rx="2" fill="#2563eb" opacity="0.85"/>
+        <text x="34" y="174" fill="#374151" font-size="8.5">CIS Benchmark (13 controles — 59%)</text>
+        <rect x="20" y="182" width="10" height="10" rx="2" fill="#059669" opacity="0.85"/>
+        <text x="34" y="191" fill="#374151" font-size="8.5">NIST 800-53 (9 controles — 41%)</text>
+      </svg>
+
+      <div class="info-box green" style="margin-top:12px;">
+        <div class="info-box-icon">🤖</div>
+        <div class="info-box-content">
+          <strong>Análisis IA post-scan</strong>
+          <p>Tras ejecutar el scan, el botón <em>"Analizar con IA"</em> envía todos los resultados a OpenRouter para obtener un resumen ejecutivo con prioridades de remediación en español.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" style="margin-top:40px;"/>
+
+  <!-- Final summary table -->
+  <h2>Resumen de capacidades</h2>
+  <table>
+    <thead><tr><th>Módulo</th><th>Tecnología clave</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td>SSH Vault con cifrado</td><td>AES-256-CBC + sql.js (SQLite)</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Telemetría en tiempo real</td><td>Polling 6s · /proc/stat · free -g · df</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Gestión de procesos</td><td>ps aux · kill -9</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Servicios systemd/SysV</td><td>systemctl · service init.d · rc-service</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Docker containers</td><td>docker ps · docker start/stop</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Terminal SSH interactiva</td><td>ssh2 exec · root/sudo escalation</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>SFTP Browser + Editor</td><td>sftp subsystem · XHR upload · stream download</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>CIS Hardening Audit</td><td>Bash one-shot script · 22 controles</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Multiagente IA</td><td>OpenRouter · gpt-4.1-mini · JSON planner</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Test suite automatizado</td><td>—</td><td><span class="badge badge-gray">No implementado</span></td></tr>
+      <tr><td>Autenticación de usuario</td><td>—</td><td><span class="badge badge-gray">No implementado</span></td></tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:40px; padding:20px; background:#f8fafc; border-radius:10px; border:1px solid #e5e7eb; text-align:center;">
+    <p style="font-size:9pt; color:#6b7280; margin:0;">
+      <strong style="color:#1a1a2e;">Linux AI Ops Studio</strong> · Versión 1.0.0 · Apache License 2.0<br/>
+      Desarrollado por <strong>Daniel Godoy</strong> · Mayo 2026<br/>
+      <span style="font-family:monospace; font-size:8pt; color:#9ca3af;">npm run dev → http://localhost:3005</span>
+    </p>
+  </div>
+
+</div>
+
+</body>
+</html>
