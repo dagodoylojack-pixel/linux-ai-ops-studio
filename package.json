@@ -39,10 +39,12 @@
     "@types/sql.js": "^1.4.11",
     "@types/ssh2": "^1.15.5",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
     "electron": "^34.1.1",
     "electron-builder": "^26.0.0",
+    "esbuild": "^0.25.0",
+    "sharp": "^0.35.4",
     "tailwindcss": "^4.1.14",
+    "to-ico": "^1.1.5",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
@@ -63,13 +65,17 @@
       {
         "from": "release-resources",
         "to": ".",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "nodeGypRebuild": false,
     "win": {
-      "target": ["nsis"],
-      "icon": "build/icon.ico"
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
     },
     "asar": false,
     "nsis": {
