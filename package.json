@@ -74,7 +74,8 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "asar": false,
     "nsis": {
