@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "tsx server.ts",
     "manage": "powershell -ExecutionPolicy Bypass -File ./manage-app.ps1",
@@ -55,7 +56,7 @@
     },
     "files": [
       "electron/**",
-      "build/**",
+      "dist/**",
       "package.json"
     ],
     "extraResources": [
