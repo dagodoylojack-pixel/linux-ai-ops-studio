@@ -5,7 +5,6 @@
 
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import * as dotenv from 'dotenv';
 import { Client as SSH2Client } from 'ssh2';
 import fs from 'fs/promises';
@@ -1823,6 +1822,9 @@ app.post('/api/servers/test-connection', async (req, res) => {
 // Setup Dev vs Production Static file routing
 async function initServer() {
   if (process.env.NODE_ENV !== 'production') {
+    // Dynamic import: vite is a devDependency and must never be required in
+    // production bundles (it isn't installed in the packaged Electron app).
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
