@@ -62,10 +62,14 @@ function launchServer() {
   console.log(`[Server] Server path: ${serverPath}`);
   console.log(`[Server] Server exists: ${fs.existsSync(serverPath)}`);
 
-  serverProcess = spawn('node', [serverPath], {
+  // Use Electron's own bundled Node runtime instead of relying on a system
+  // 'node' binary being present in PATH (end users won't have Node installed).
+  // ELECTRON_RUN_AS_NODE makes process.execPath behave as a plain Node process.
+  serverProcess = spawn(process.execPath, [serverPath], {
     cwd: appRoot, // Run from app root so relative paths work
     env: {
       ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
       NODE_ENV: 'production',
       PORT: APP_PORT.toString(),
       STORAGE_DB_PATH: path.join(
