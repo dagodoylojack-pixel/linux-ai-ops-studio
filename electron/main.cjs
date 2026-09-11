@@ -6,14 +6,36 @@
  * and displays it in a native window.
  */
 
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const { isFirstRun, showSetupWizard, loadApiKey } = require('./setup-wizard.cjs');
 
+const APP_VERSION = '1.0.0';
+const APP_AUTHOR = 'Daniel Godoy';
+
+// Safety net: if anything throws outside a try/catch during startup, show it
+// instead of letting the app vanish with no window and no error dialog.
+process.on('uncaughtException', (err) => {
+  console.error('[Main] Uncaught exception:', err);
+  logToConsole(`Error inesperado: ${err.message}`, 'err');
+  try {
+    dialog.showErrorBox('Error inesperado', err.stack || String(err));
+  } catch (_) {
+    /* dialog may not be ready yet */
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason && reason.stack ? reason.stack : String(reason);
+  console.error('[Main] Unhandled rejection:', message);
+  logToConsole(`Error inesperado: ${message}`, 'err');
+});
+
 let mainWindow;
+let consoleWindow;
 let serverProcess;
 
 const APP_PORT = 3005;
@@ -51,6 +73,78 @@ async function waitForServer() {
 }
 
 /**
+ * Create a visible console window that reports startup progress and server
+ * output in real time. Stays open on failure so the user can read what went
+ * wrong instead of the app silently closing.
+ */
+function createConsoleWindow() {
+  consoleWindow = new BrowserWindow({
+    width: 760,
+    height: 500,
+    title: `Linux AI Ops Studio — Consola`,
+    autoHideMenuBar: true,
+    backgroundColor: '#0f172a',
+    webPreferences: {
+      sandbox: true,
+    },
+  });
+
+  const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: Consolas, 'Courier New', monospace; }
+  header { padding: 16px 20px; border-bottom: 1px solid #1e293b; background: #111827; }
+  header .title { font-size: 18px; font-weight: bold; color: #34d399; }
+  header .meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  #log { padding: 12px 20px; font-size: 12px; line-height: 1.7; height: calc(100vh - 78px); overflow-y: auto; white-space: pre-wrap; }
+  .info { color: #93c5fd; }
+  .ok { color: #34d399; }
+  .err { color: #f87171; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">Linux AI Ops Studio</div>
+    <div class="meta">v${APP_VERSION} &mdash; por ${APP_AUTHOR}</div>
+  </header>
+  <div id="log"></div>
+</body>
+</html>`;
+
+  consoleWindow.loadURL(`data:text/html,${encodeURIComponent(html)}`);
+
+  consoleWindow.on('closed', () => {
+    consoleWindow = null;
+  });
+}
+
+/**
+ * Append a line to the console window (and stdout, for `npm run dev` / logs).
+ */
+function logToConsole(message, level = 'info') {
+  const tag = { info: '[i]', ok: '[OK]', err: '[ERROR]' }[level] || '[i]';
+  console.log(`${tag} ${message}`);
+
+  if (!consoleWindow || consoleWindow.isDestroyed()) return;
+
+  const script = `
+    (function() {
+      var el = document.getElementById('log');
+      if (!el) return;
+      var line = document.createElement('div');
+      line.className = ${JSON.stringify(level)};
+      line.textContent = ${JSON.stringify(message)};
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    })();
+  `;
+  consoleWindow.webContents.executeJavaScript(script).catch(() => {});
+}
+
+/**
  * Launch the Express server as a child process
  */
 function launchServer() {
@@ -58,42 +152,53 @@ function launchServer() {
   const appRoot = path.join(__dirname, '..');
   const serverPath = path.join(appRoot, 'dist', 'server.cjs');
 
-  console.log(`[Server] App root: ${appRoot}`);
-  console.log(`[Server] Server path: ${serverPath}`);
-  console.log(`[Server] Server exists: ${fs.existsSync(serverPath)}`);
+  logToConsole(`Raíz de la app: ${appRoot}`);
+  logToConsole(`Ruta del servidor: ${serverPath}`);
+
+  if (!fs.existsSync(serverPath)) {
+    logToConsole(`No se encontró server.cjs en la ruta esperada.`, 'err');
+    return;
+  }
+
+  logToConsole('Lanzando el servidor...');
 
   // Use Electron's own bundled Node runtime instead of relying on a system
   // 'node' binary being present in PATH (end users won't have Node installed).
   // ELECTRON_RUN_AS_NODE makes process.execPath behave as a plain Node process.
-  serverProcess = spawn(process.execPath, [serverPath], {
-    cwd: appRoot, // Run from app root so relative paths work
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-      NODE_ENV: 'production',
-      PORT: APP_PORT.toString(),
-      STORAGE_DB_PATH: path.join(
-        app.getPath('userData'),
-        'linux_ai_ops.sqlite3'
-      ),
-    },
-    stdio: 'inherit', // Show all output for debugging
-  });
+  try {
+    serverProcess = spawn(process.execPath, [serverPath], {
+      cwd: appRoot, // Run from app root so relative paths work
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        NODE_ENV: 'production',
+        PORT: APP_PORT.toString(),
+        STORAGE_DB_PATH: path.join(
+          app.getPath('userData'),
+          'linux_ai_ops.sqlite3'
+        ),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    logToConsole(`No se pudo lanzar el servidor: ${err.message}`, 'err');
+    return;
+  }
 
   serverProcess.stdout.on('data', (data) => {
-    console.log(`[Server] ${data.toString().trim()}`);
+    logToConsole(data.toString().trim());
   });
 
   serverProcess.stderr.on('data', (data) => {
-    console.error(`[Server Error] ${data.toString().trim()}`);
+    logToConsole(data.toString().trim(), 'err');
   });
 
   serverProcess.on('error', (err) => {
-    console.error('[Server] Failed to start:', err);
+    logToConsole(`Fallo al iniciar el servidor: ${err.message}`, 'err');
   });
 
   serverProcess.on('exit', (code) => {
-    console.log(`[Server] Process exited with code ${code}`);
+    logToConsole(`El proceso del servidor terminó (código ${code})`, code === 0 ? 'info' : 'err');
     serverProcess = null;
   });
 }
@@ -111,7 +216,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       sandbox: true,
     },
-    icon: path.join(__dirname, '..', 'build', 'icon.ico'),
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${APP_PORT}`);
@@ -127,41 +232,41 @@ function createWindow() {
 }
 
 /**
- * Show a splash/loading screen while server starts
+ * Full startup sequence: show console, launch server, wait for it, then
+ * open the main window (or leave the console open with the error).
  */
-async function showLoadingWindow() {
-  const loadingWindow = new BrowserWindow({
-    width: 400,
-    height: 300,
-    frame: false,
-    alwaysOnTop: true,
-    webPreferences: {
-      sandbox: true,
-    },
-  });
+async function startApp() {
+  createConsoleWindow();
+  logToConsole(`Iniciando Linux AI Ops Studio v${APP_VERSION}...`);
+  logToConsole(`Desarrollado por ${APP_AUTHOR}`);
 
-  loadingWindow.loadURL(
-    `data:text/html,<html style="background: linear-gradient(135deg, #059669, #2563eb); display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
-      <div style="text-align: center; color: white;">
-        <div style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">Linux AI Ops Studio</div>
-        <div style="font-size: 14px;">Starting up...</div>
-      </div>
-    </html>`
-  );
+  try {
+    loadApiKey();
+  } catch (err) {
+    logToConsole(`Advertencia cargando la API key: ${err.message}`, 'err');
+  }
+
+  launchServer();
+  logToConsole('Esperando respuesta del servidor...');
 
   const ready = await waitForServer();
-  loadingWindow.close();
 
   if (ready) {
+    logToConsole('Servidor listo.', 'ok');
     createWindow();
+
+    if (consoleWindow && !consoleWindow.isDestroyed()) {
+      consoleWindow.close();
+    }
 
     // Show first-run setup wizard if needed
     if (isFirstRun()) {
       setTimeout(() => showSetupWizard(mainWindow), 1000);
     }
   } else {
-    console.error('Server failed to start within timeout');
-    app.quit();
+    logToConsole('El servidor no respondió a tiempo. Revise los mensajes anteriores.', 'err');
+    logToConsole('Esta ventana permanecerá abierta para diagnóstico.', 'err');
+    // Do not close the console window or quit automatically — let the user read the log.
   }
 }
 
@@ -218,12 +323,11 @@ function createMenu() {
         {
           label: 'About',
           click: () => {
-            require('electron').dialog.showMessageBox(mainWindow, {
+            dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'About Linux AI Ops Studio',
-              message: 'Linux AI Ops Studio v1.0.0',
-              detail:
-                'Autonomous systems orchestrator powered by AI.\nby Daniel Godoy',
+              message: `Linux AI Ops Studio v${APP_VERSION}`,
+              detail: `Autonomous systems orchestrator powered by AI.\npor ${APP_AUTHOR}`,
             });
           },
         },
@@ -238,12 +342,8 @@ function createMenu() {
  * App lifecycle
  */
 app.on('ready', async () => {
-  // Load API key from config if available
-  loadApiKey();
-
   createMenu();
-  launchServer();
-  await showLoadingWindow();
+  await startApp();
 });
 
 app.on('window-all-closed', () => {
@@ -256,7 +356,7 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   // On macOS, re-show window when app is activated
   if (mainWindow === null) {
-    showLoadingWindow();
+    startApp();
   }
 });
 
