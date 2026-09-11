@@ -198,14 +198,20 @@ function parseEnvApiKey(content) {
  *  2. The app root shown in the console log (resources/app) — also where
  *     server.ts's own dotenv.config() looks, since the server runs with
  *     that as its cwd.
- *  3. One level up — the top-level install folder a user browsing in
- *     Explorer would consider "where the app is installed".
+ *  3. resources/ (one level up from appRoot) — harmless extra check.
+ *  4. The actual top-level install folder, e.g.
+ *     "C:\...\Programs\Linux AI Ops Studio\" — two levels up from appRoot
+ *     (appRoot = "...\Linux AI Ops Studio\resources\app"). This is what a
+ *     user browsing in Explorer, next to the .exe, considers "the program's
+ *     location" — a single "one level up" was landing in resources/ instead
+ *     and never actually reaching this folder.
  */
 function getEnvFileCandidates(appRoot) {
   return [
     path.join(CONFIG_DIR, '.env'),
     path.join(appRoot, '.env'),
     path.join(appRoot, '..', '.env'),
+    path.join(appRoot, '..', '..', '.env'),
   ];
 }
 
