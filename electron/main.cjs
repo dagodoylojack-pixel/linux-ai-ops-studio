@@ -13,9 +13,6 @@ const http = require('http');
 const fs = require('fs');
 const { isFirstRun, showSetupWizard, loadApiKey } = require('./setup-wizard.cjs');
 
-// __dirname equivalent in CommonJS
-const __dirname = path.dirname(__filename);
-
 let mainWindow;
 let serverProcess;
 
