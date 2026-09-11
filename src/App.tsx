@@ -351,8 +351,8 @@ export default function App() {
 
         <div className="flex items-center gap-2 text-xs flex-shrink-0">
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-brand-dark/40 border border-brand-border rounded-lg text-brand-text-muted font-mono text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
-            <span className="text-emerald-400 font-mono whitespace-nowrap">
+            <span className={`w-1.5 h-1.5 rounded-full animate-ping flex-shrink-0 ${modelStatus.connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            <span className={`font-mono whitespace-nowrap ${modelStatus.connected ? 'text-emerald-400' : 'text-amber-400'}`}>
               {modelStatus.connected ? `Modelo: ${modelStatus.model}` : 'OpenRouter: sin configurar'}
             </span>
           </div>

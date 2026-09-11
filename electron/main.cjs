@@ -11,10 +11,32 @@ const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
-const { isFirstRun, showSetupWizard, loadApiKey } = require('./setup-wizard.cjs');
+const { isFirstRun, showSetupWizard, CONFIG_DIR } = require('./setup-wizard.cjs');
 
 const APP_VERSION = '1.0.0';
 const APP_AUTHOR = 'Daniel Godoy';
+
+// __dirname is electron/, parent is the packaged app root (resources/app)
+const APP_ROOT = path.join(__dirname, '..');
+
+// Persistent error/diagnostics log — survives across app restarts and
+// reinstalls (lives in the same per-user config folder as the .env file).
+const LOG_FILE = path.join(CONFIG_DIR, 'errores.log');
+
+/**
+ * Append one line to the persistent errores.log. Best-effort: logging must
+ * never itself crash the app.
+ */
+function appendToErrorLog(message) {
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+    fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
+  } catch (_) {
+    // ignore — nothing else we can do if the log itself can't be written
+  }
+}
 
 // Safety net: if anything throws outside a try/catch during startup, show it
 // instead of letting the app vanish with no window and no error dialog.
@@ -127,6 +149,7 @@ function createConsoleWindow() {
 function logToConsole(message, level = 'info') {
   const tag = { info: '[i]', ok: '[OK]', err: '[ERROR]' }[level] || '[i]';
   console.log(`${tag} ${message}`);
+  appendToErrorLog(`${tag} ${message}`);
 
   if (!consoleWindow || consoleWindow.isDestroyed()) return;
 
@@ -145,11 +168,80 @@ function logToConsole(message, level = 'info') {
 }
 
 /**
+ * Parse OPENROUTER_API_KEY=... out of raw .env file content, properly
+ * skipping comment lines (a naive regex without line anchors can match a
+ * commented-out placeholder like "# OPENROUTER_API_KEY=sk_or_xxxxx..."
+ * instead of the user's real key on the line below it).
+ */
+function parseEnvApiKey(content) {
+  // Strip a leading UTF-8 BOM (common when a .env is saved from Notepad on Windows)
+  const clean = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  for (const rawLine of clean.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const match = line.match(/^OPENROUTER_API_KEY\s*=\s*(.*)$/);
+    if (!match) continue;
+    let value = match[1].trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (value) return value;
+  }
+  return null;
+}
+
+/**
+ * All the places a user could plausibly have dropped a .env file with their
+ * OpenRouter key, in priority order:
+ *  1. The official per-user config folder (what the first-run wizard writes,
+ *     and what survives across reinstalls/updates).
+ *  2. The app root shown in the console log (resources/app) — also where
+ *     server.ts's own dotenv.config() looks, since the server runs with
+ *     that as its cwd.
+ *  3. One level up — the top-level install folder a user browsing in
+ *     Explorer would consider "where the app is installed".
+ */
+function getEnvFileCandidates(appRoot) {
+  return [
+    path.join(CONFIG_DIR, '.env'),
+    path.join(appRoot, '.env'),
+    path.join(appRoot, '..', '.env'),
+  ];
+}
+
+/**
+ * Scan all candidate .env locations for OPENROUTER_API_KEY, logging every
+ * path checked so a failure is diagnosable from the console/log file alone.
+ * Sets process.env.OPENROUTER_API_KEY (inherited by the spawned server) on
+ * the first valid key found.
+ */
+function resolveOpenRouterApiKey(appRoot) {
+  for (const candidate of getEnvFileCandidates(appRoot)) {
+    const exists = fs.existsSync(candidate);
+    logToConsole(`Buscando .env en: ${candidate} (${exists ? 'existe' : 'no existe'})`);
+    if (!exists) continue;
+
+    try {
+      const key = parseEnvApiKey(fs.readFileSync(candidate, 'utf-8'));
+      if (key) {
+        logToConsole(`API key de OpenRouter encontrada en: ${candidate}`, 'ok');
+        process.env.OPENROUTER_API_KEY = key;
+        return candidate;
+      }
+      logToConsole(`El archivo existe pero no tiene OPENROUTER_API_KEY activa (¿sigue comentada con #?): ${candidate}`, 'err');
+    } catch (err) {
+      logToConsole(`No se pudo leer ${candidate}: ${err.message}`, 'err');
+    }
+  }
+
+  logToConsole('No se encontró ninguna API key de OpenRouter. La app funcionará en modo simulado.', 'err');
+  return null;
+}
+
+/**
  * Launch the Express server as a child process
  */
-function launchServer() {
-  // __dirname is electron/, parent is app root
-  const appRoot = path.join(__dirname, '..');
+function launchServer(appRoot) {
   const serverPath = path.join(appRoot, 'dist', 'server.cjs');
 
   logToConsole(`Raíz de la app: ${appRoot}`);
@@ -237,16 +329,17 @@ function createWindow() {
  */
 async function startApp() {
   createConsoleWindow();
-  logToConsole(`Iniciando Linux AI Ops Studio v${APP_VERSION}...`);
+  logToConsole(`===== Iniciando Linux AI Ops Studio v${APP_VERSION} =====`);
   logToConsole(`Desarrollado por ${APP_AUTHOR}`);
+  logToConsole(`Registro de errores: ${LOG_FILE}`);
 
   try {
-    loadApiKey();
+    resolveOpenRouterApiKey(APP_ROOT);
   } catch (err) {
     logToConsole(`Advertencia cargando la API key: ${err.message}`, 'err');
   }
 
-  launchServer();
+  launchServer(APP_ROOT);
   logToConsole('Esperando respuesta del servidor...');
 
   const ready = await waitForServer();

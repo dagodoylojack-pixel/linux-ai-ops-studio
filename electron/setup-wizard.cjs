@@ -7,7 +7,10 @@ const { dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const CONFIG_DIR = path.join(process.env.APPDATA || path.join(process.env.HOME, '.config'), 'linux-ai-ops-studio');
+const CONFIG_DIR = path.join(
+  process.env.APPDATA || path.join(process.env.HOME || process.env.USERPROFILE, '.config'),
+  'linux-ai-ops-studio'
+);
 const CONFIG_FILE = path.join(CONFIG_DIR, '.first-run');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 
@@ -94,27 +97,14 @@ function createEnvTemplate() {
   }
 }
 
-/**
- * Load API key from .env file
- */
-function loadApiKey() {
-  if (fs.existsSync(ENV_FILE)) {
-    const envContent = fs.readFileSync(ENV_FILE, 'utf-8');
-    const match = envContent.match(/OPENROUTER_API_KEY=(.+)/);
-    if (match) {
-      const apiKey = match[1].trim();
-      if (apiKey && !apiKey.startsWith('#')) {
-        process.env.OPENROUTER_API_KEY = apiKey;
-        return apiKey;
-      }
-    }
-  }
-  return null;
-}
-
 // Exports
+// NOTE: API key loading itself lives in main.cjs (resolveOpenRouterApiKey),
+// which scans several candidate .env locations and logs what it finds.
+// CONFIG_DIR/ENV_FILE are exported so main.cjs uses the exact same paths
+// this wizard writes to instead of duplicating the logic.
 module.exports = {
   isFirstRun,
   showSetupWizard,
-  loadApiKey,
+  CONFIG_DIR,
+  ENV_FILE,
 };
