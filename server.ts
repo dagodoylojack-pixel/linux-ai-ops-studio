@@ -28,7 +28,7 @@ let SQL: any = null;
 let sqlDb: any = null;
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim() || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'gpt-4.1-mini';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'openrouter/free';
 const OPENROUTER_API_BASE = process.env.OPENROUTER_API_BASE?.trim() || 'https://openrouter.ai/api/v1';
 
 // Persistence configuration (allow override via env)

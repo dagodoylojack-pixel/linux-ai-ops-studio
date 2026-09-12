@@ -90,8 +90,8 @@ function createEnvTemplate() {
 # Descomenta la siguiente línea y reemplaza con tu clave:
 # OPENROUTER_API_KEY=sk_or_xxxxx...
 
-# Modelo a usar (por defecto: gpt-4-1-mini)
-# OPENROUTER_MODEL=gpt-4-1-mini
+# Modelo a usar (por defecto: openrouter/free)
+# OPENROUTER_MODEL=openrouter/free
 `;
     fs.writeFileSync(ENV_FILE, envContent);
   }

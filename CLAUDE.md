@@ -49,7 +49,7 @@ The AI agent endpoint (`POST /api/openrouter/run-agent`) calls OpenRouter to gen
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENROUTER_API_KEY` | No | Enables real AI. Without it, the app uses simulated responses. |
-| `OPENROUTER_MODEL` | No | Model to use (default: `gpt-4.1-mini`) |
+| `OPENROUTER_MODEL` | No | Model to use (default: `openrouter/free`) |
 | `OPENROUTER_API_BASE` | No | Override base URL (default: `https://openrouter.ai/api/v1`) |
 | `STORAGE_DB_PATH` | No | SQLite file path (default: `.linux_ai_ops.sqlite3`) |
 | `PORT` | No | HTTP port (default: `3005`) |

@@ -43,8 +43,8 @@ En el primer inicio de la aplicación (después de instalar), aparece un **setup
      # Descomenta la siguiente línea y reemplaza con tu clave:
      # OPENROUTER_API_KEY=sk_or_xxxxx...
 
-     # Modelo a usar (por defecto: gpt-4-1-mini)
-     # OPENROUTER_MODEL=gpt-4-1-mini
+     # Modelo a usar (por defecto: openrouter/free)
+     # OPENROUTER_MODEL=openrouter/free
      ```
    - El usuario:
      1. Va a https://openrouter.ai/keys
@@ -82,7 +82,7 @@ El archivo `.env` soporta:
 | Variable | Ejemplo | Opcional |
 |----------|---------|----------|
 | `OPENROUTER_API_KEY` | `sk_or_abc123...` | ✅ Sí (sin ella, modo simulado) |
-| `OPENROUTER_MODEL` | `gpt-4-1-mini` | ✅ Sí (default: gpt-4-1-mini) |
+| `OPENROUTER_MODEL` | `openrouter/free` | ✅ Sí (default: openrouter/free) |
 | `OPENROUTER_API_BASE` | `https://openrouter.ai/api/v1` | ✅ Sí (default: OpenRouter) |
 
 ## Comportamiento sin API key
@@ -104,6 +104,7 @@ Si no hay clave configurada:
 5. Guarda y reinicia la app
 
 **Modelo recomendado** para usar en OpenRouter:
+- `openrouter/free` — Gratis, sin necesidad de crédito (default de la app)
 - `gpt-4-1-mini` — Rápido, barato, buen balance
 - `gpt-4` — Más potente pero más caro
 - `claude-3-haiku` — Buena alternativa

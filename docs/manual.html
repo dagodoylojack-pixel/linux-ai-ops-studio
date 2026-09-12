@@ -515,7 +515,7 @@
       <rect x="490" y="180" width="140" height="110" rx="10" fill="#0f172a" stroke="#1e3a5f" stroke-width="1.5"/>
       <text x="560" y="204" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="700" letter-spacing="1">OPENROUTER</text>
       <rect x="505" y="212" width="110" height="24" rx="5" fill="#1e3a5f"/>
-      <text x="560" y="228" text-anchor="middle" fill="#bfdbfe" font-size="7.5">gpt-4.1-mini (default)</text>
+      <text x="560" y="228" text-anchor="middle" fill="#bfdbfe" font-size="7.5">openrouter/free (default)</text>
       <rect x="505" y="246" width="110" height="24" rx="5" fill="#1e3a5f"/>
       <text x="560" y="262" text-anchor="middle" fill="#bfdbfe" font-size="7.5">JSON plan generator</text>
       <text x="560" y="284" text-anchor="middle" fill="#64748b" font-size="7">Fallback: simulatedAction()</text>
@@ -1266,7 +1266,7 @@
     <thead><tr><th>Variable</th><th>Requerida</th><th>Por defecto</th><th>Descripción</th></tr></thead>
     <tbody>
       <tr><td><code>OPENROUTER_API_KEY</code></td><td><span class="badge badge-green">No</span></td><td>—</td><td>Activa IA real. Sin ella usa respuestas simuladas.</td></tr>
-      <tr><td><code>OPENROUTER_MODEL</code></td><td><span class="badge badge-green">No</span></td><td><code>gpt-4.1-mini</code></td><td>Modelo de IA. Puede ser cualquier modelo de OpenRouter.</td></tr>
+      <tr><td><code>OPENROUTER_MODEL</code></td><td><span class="badge badge-green">No</span></td><td><code>openrouter/free</code></td><td>Modelo de IA. Puede ser cualquier modelo de OpenRouter.</td></tr>
       <tr><td><code>OPENROUTER_API_BASE</code></td><td><span class="badge badge-green">No</span></td><td><code>https://openrouter.ai/api/v1</code></td><td>URL base de OpenRouter (override para proxies).</td></tr>
       <tr><td><code>STORAGE_DB_PATH</code></td><td><span class="badge badge-green">No</span></td><td><code>.linux_ai_ops.sqlite3</code></td><td>Ruta del archivo SQLite con credenciales cifradas.</td></tr>
       <tr><td><code>PORT</code></td><td><span class="badge badge-green">No</span></td><td><code>3005</code></td><td>Puerto HTTP del servidor Express.</td></tr>
@@ -1492,7 +1492,7 @@ systemctl restart sshd</pre>
       <tr><td>Terminal SSH interactiva</td><td>ssh2 exec · root/sudo escalation</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
       <tr><td>SFTP Browser + Editor</td><td>sftp subsystem · XHR upload · stream download</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
       <tr><td>CIS Hardening Audit</td><td>Bash one-shot script · 22 controles</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
-      <tr><td>Multiagente IA</td><td>OpenRouter · gpt-4.1-mini · JSON planner</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
+      <tr><td>Multiagente IA</td><td>OpenRouter · openrouter/free · JSON planner</td><td><span class="badge badge-green">✓ Producción</span></td></tr>
       <tr><td>Test suite automatizado</td><td>—</td><td><span class="badge badge-gray">No implementado</span></td></tr>
       <tr><td>Autenticación de usuario</td><td>—</td><td><span class="badge badge-gray">No implementado</span></td></tr>
     </tbody>

@@ -16,7 +16,7 @@ View your app in AI Studio: https://ai.studio/apps/a519c4d2-7c10-450a-97a9-6f7c8
 1. Install dependencies:
    `npm install`
 2. Set the `OPENROUTER_API_KEY` in [.env.local](.env.local) to your OpenRouter API key
-3. Optionally set `OPENROUTER_MODEL` to the model name you want to use (default: `gpt-4.1-mini`).
+3. Optionally set `OPENROUTER_MODEL` to the model name you want to use (default: `openrouter/free`).
 4. Run the app:
    `npm run dev`
 
@@ -24,7 +24,7 @@ Optional: Use OpenRouter via API key instead of Gemini OAuth
 
 - Set `OPENROUTER_API_KEY` in your environment or in `.env.local`.
 - Optionally set `OPENROUTER_MODEL` to select the OpenRouter model you want to use
-  (default: `gpt-4.1-mini`).
+  (default: `openrouter/free`).
 - The app sends AI prompts through OpenRouter to generate autonomous Linux
   operations plans and diagnostics.
 
