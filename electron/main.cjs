@@ -168,15 +168,45 @@ function logToConsole(message, level = 'info') {
 }
 
 /**
+ * Read a text file whose encoding is unknown up front. Windows editors are
+ * inconsistent here: Notepad defaults to UTF-8, but PowerShell's `>` and
+ * `Set-Content` redirection default to UTF-16LE (with BOM). Reading a
+ * UTF-16LE file as UTF-8 interleaves every character with a NUL byte,
+ * silently breaking every regex match against it — the file exists, looks
+ * fine in an editor, and the key is still never found. Detect the BOM and
+ * decode accordingly instead of assuming UTF-8.
+ */
+function readTextFileAnyEncoding(filePath) {
+  const buf = fs.readFileSync(filePath);
+
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+    return { text: buf.slice(2).toString('utf16le'), encoding: 'UTF-16LE' };
+  }
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    // UTF-16BE: Node has no native decoder, so byte-swap into UTF-16LE first.
+    const swapped = Buffer.alloc(buf.length - 2);
+    for (let i = 2; i + 1 < buf.length; i += 2) {
+      swapped[i - 2] = buf[i + 1];
+      swapped[i - 1] = buf[i];
+    }
+    return { text: swapped.toString('utf16le'), encoding: 'UTF-16BE' };
+  }
+
+  let text = buf.toString('utf8');
+  if (text.charCodeAt(0) === 0xfeff) {
+    text = text.slice(1); // strip UTF-8 BOM
+  }
+  return { text, encoding: 'UTF-8' };
+}
+
+/**
  * Parse OPENROUTER_API_KEY=... out of raw .env file content, properly
  * skipping comment lines (a naive regex without line anchors can match a
  * commented-out placeholder like "# OPENROUTER_API_KEY=sk_or_xxxxx..."
  * instead of the user's real key on the line below it).
  */
 function parseEnvApiKey(content) {
-  // Strip a leading UTF-8 BOM (common when a .env is saved from Notepad on Windows)
-  const clean = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
-  for (const rawLine of clean.split(/\r?\n/)) {
+  for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const match = line.match(/^OPENROUTER_API_KEY\s*=\s*(.*)$/);
@@ -228,7 +258,9 @@ function resolveOpenRouterApiKey(appRoot) {
     if (!exists) continue;
 
     try {
-      const key = parseEnvApiKey(fs.readFileSync(candidate, 'utf-8'));
+      const { text, encoding } = readTextFileAnyEncoding(candidate);
+      logToConsole(`Leído ${candidate} como ${encoding} (${text.length} caracteres)`);
+      const key = parseEnvApiKey(text);
       if (key) {
         logToConsole(`API key de OpenRouter encontrada en: ${candidate}`, 'ok');
         process.env.OPENROUTER_API_KEY = key;
