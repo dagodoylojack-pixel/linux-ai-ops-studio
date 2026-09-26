@@ -27,8 +27,11 @@ app.use(express.json({ limit: '100mb' }));
 let SQL: any = null;
 let sqlDb: any = null;
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim() || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'openrouter/free';
+// Mutable: /api/openrouter/configure updates these at runtime (and persists
+// the change to .env) so a key entered from the running app takes effect
+// immediately, with no restart required.
+let OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim() || '';
+let OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'openrouter/free';
 const OPENROUTER_API_BASE = process.env.OPENROUTER_API_BASE?.trim() || 'https://openrouter.ai/api/v1';
 
 // Persistence configuration (allow override via env)
@@ -162,58 +165,120 @@ async function verifyServerConnection(server: any) {
   return 'offline';
 }
 
+/**
+ * Validate an API key + model against the real OpenRouter API in a single
+ * round trip, with a timeout so a slow or unreachable OpenRouter never hangs
+ * the caller indefinitely. Returns a specific, actionable error message
+ * (bad key vs. unknown model vs. network/timeout) instead of a generic
+ * failure — used both by the periodic connection status check and by the
+ * in-app "configure API key" endpoint so both report the same diagnosis.
+ */
+async function verifyApiKeyWithOpenRouter(
+  apiKey: string,
+  model: string,
+  apiBase: string,
+  timeoutMs = 8000
+): Promise<{ ok: boolean; resolvedModel?: string; error?: string }> {
+  if (!apiKey) return { ok: false, error: 'No se proporcionó ninguna clave API.' };
+
+  const normalizedBase = apiBase.replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${normalizedBase}/models`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, error: 'OpenRouter rechazó la clave API (no autorizada). Verifica que la copiaste completa y que sigue activa en openrouter.ai/keys.' };
+    }
+    if (!response.ok) {
+      return { ok: false, error: `OpenRouter respondió con un error inesperado (HTTP ${response.status}).` };
+    }
+
+    const data = await response.json();
+    const models: any[] = Array.isArray(data?.data) ? data.data : [];
+    const found = models.find((m) => m?.id === model);
+
+    if (models.length > 0 && !found) {
+      return {
+        ok: false,
+        error: `La clave es válida, pero el modelo "${model}" no está disponible en tu cuenta de OpenRouter. Prueba con "openrouter/free" o revisa OPENROUTER_MODEL.`,
+      };
+    }
+
+    return { ok: true, resolvedModel: found?.id || model };
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return { ok: false, error: 'Tiempo de espera agotado contactando a OpenRouter. Verifica tu conexión a internet e inténtalo de nuevo.' };
+    }
+    return { ok: false, error: `No se pudo contactar a OpenRouter: ${err.message}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function verifyOpenRouterConnection() {
   if (!isOpenRouterConfigured()) {
     return { connected: false, authMode: 'none' as const, model: null };
   }
 
-  const normalizedBase = OPENROUTER_API_BASE.replace(/\/+$/, '');
-  const baseHeaders = {
-    Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-    'Content-Type': 'application/json',
-  };
-
-  const tryRequest = async (url: string) => {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: baseHeaders,
-    });
-    if (!response.ok) {
-      throw new Error(`Status ${response.status}`);
-    }
-    return response.json();
-  };
-
-  try {
-    const modelResponse = await tryRequest(`${normalizedBase}/models/${OPENROUTER_MODEL}`);
-    return {
-      connected: true,
-      authMode: 'apikey' as const,
-      model: modelResponse?.id || OPENROUTER_MODEL,
-    };
-  } catch (firstErr) {
-    try {
-      const modelsResponse = await tryRequest(`${normalizedBase}/models`);
-      const foundModel = Array.isArray(modelsResponse?.data)
-        ? modelsResponse.data.find((item: any) => item?.id === OPENROUTER_MODEL)
-        : undefined;
-      return {
-        connected: true,
-        authMode: 'apikey' as const,
-        model: foundModel?.id || OPENROUTER_MODEL,
-      };
-    } catch (secondErr) {
-      console.error('OpenRouter connection validation failed:', secondErr);
-      return { connected: false, authMode: 'apikey' as const, model: OPENROUTER_MODEL };
-    }
+  const result = await verifyApiKeyWithOpenRouter(OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_API_BASE);
+  if (!result.ok) {
+    console.error('OpenRouter connection validation failed:', result.error);
+    return { connected: false, authMode: 'apikey' as const, model: OPENROUTER_MODEL };
   }
+  return { connected: true, authMode: 'apikey' as const, model: result.resolvedModel || OPENROUTER_MODEL };
+}
+
+/**
+ * Insert or replace KEY=VALUE lines in the .env file, preserving every other
+ * line (comments, unrelated vars) untouched. Creates the file with a short
+ * header if it doesn't exist yet. This is the exact file the packaged
+ * Electron app resolves its OpenRouter key from (see main.cjs's
+ * resolveOpenRouterApiKey, and this file's own dotenv.config above) — so
+ * writing here from the running app has the same effect as hand-editing the
+ * .env in the installation directory.
+ */
+async function upsertEnvFile(updates: Record<string, string>) {
+  let lines: string[];
+  try {
+    const existing = await fs.readFile(ENV_PATH, 'utf8');
+    lines = existing.split(/\r?\n/);
+  } catch {
+    lines = [
+      '# Linux AI Ops Studio - Configuración',
+      '# Generado automáticamente al guardar la clave API desde la aplicación.',
+      '',
+    ];
+  }
+
+  const remainingKeys = new Set(Object.keys(updates));
+  const nextLines = lines.map((line) => {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=/i);
+    if (match && remainingKeys.has(match[1])) {
+      const key = match[1];
+      remainingKeys.delete(key);
+      return `${key}=${updates[key]}`;
+    }
+    return line;
+  });
+
+  for (const key of remainingKeys) {
+    nextLines.push(`${key}=${updates[key]}`);
+  }
+
+  await fs.writeFile(ENV_PATH, nextLines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n', 'utf8');
 }
 
 try {
   if (OPENROUTER_API_KEY) {
     console.log('OpenRouter API key configured, backend AI requests enabled.');
   } else {
-    console.warn('OPENROUTER_API_KEY environment variable is not defined. Running in AI simulation fallback mode.');
+    console.warn('OPENROUTER_API_KEY environment variable is not defined. The AI agent endpoint will return 503 until a key is configured (via .env or POST /api/openrouter/configure).');
   }
 } catch (error) {
   console.error('Error initializing OpenRouter configuration:', error);
@@ -244,17 +309,36 @@ async function requestOpenRouterCompletion(systemInstruction: string, userPrompt
     ? normalizedBase
     : `${normalizedBase}/chat/completions`;
 
-  const response = await fetch(requestUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  // 45s timeout — generation can legitimately take a while, but without this
+  // an unreachable/hanging OpenRouter would leave the agent chat "thinking"
+  // forever with no error ever surfaced to the UI.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45000);
+  let response;
+  try {
+    response = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado esperando respuesta de OpenRouter (45s). Verifica tu conexión o intenta de nuevo.');
+    }
+    throw new Error(`No se pudo contactar a OpenRouter: ${err.message}`);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const bodyText = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('OpenRouter rechazó la clave API (no autorizada). Reconfigúrala desde el botón "Configurar IA".');
+    }
     throw new Error(`OpenRouter API error ${response.status}: ${bodyText}`);
   }
 
@@ -298,6 +382,37 @@ async function requestOpenRouterCompletion(systemInstruction: string, userPrompt
 app.get('/auth/openrouter/status', async (req, res) => {
   const status = await verifyOpenRouterConnection();
   res.json(status);
+});
+
+// Configure the OpenRouter API key from the running application — validates
+// it against the real API first, then persists it to .env (in the app's
+// installation directory) and activates it immediately, with no restart.
+app.post('/api/openrouter/configure', async (req, res) => {
+  const { apiKey, model } = req.body || {};
+  const trimmedKey = typeof apiKey === 'string' ? apiKey.trim().replace(/[\r\n]/g, '') : '';
+  const trimmedModel = typeof model === 'string' && model.trim() ? model.trim() : OPENROUTER_MODEL;
+
+  if (!trimmedKey) {
+    return res.status(400).json({ error: 'Ingresa una clave API de OpenRouter.' });
+  }
+
+  const result = await verifyApiKeyWithOpenRouter(trimmedKey, trimmedModel, OPENROUTER_API_BASE);
+  if (!result.ok) {
+    return res.status(400).json({ error: result.error || 'No se pudo validar la clave API.' });
+  }
+
+  try {
+    await upsertEnvFile({ OPENROUTER_API_KEY: trimmedKey, OPENROUTER_MODEL: trimmedModel });
+  } catch (err: any) {
+    console.error('Failed to persist OpenRouter key to .env:', err.message || err);
+    return res.status(500).json({ error: `La clave es válida, pero no se pudo guardar en el archivo .env: ${err.message}` });
+  }
+
+  OPENROUTER_API_KEY = trimmedKey;
+  OPENROUTER_MODEL = trimmedModel;
+
+  console.log('OpenRouter API key updated from the running application.');
+  return res.json({ success: true, connected: true, model: result.resolvedModel || trimmedModel });
 });
 
 // Load persisted servers from DB at startup
@@ -1164,7 +1279,7 @@ Por favor, analiza la situación, provee un diagnóstico detallado, genera los c
 
   if (!isOpenRouterConfigured()) {
     return res.status(503).json({
-      error: 'OpenRouter no está configurado. Agregue OPENROUTER_API_KEY en el archivo .env y reinicie el servidor.',
+      error: 'OpenRouter no está configurado. Usa el botón "Configurar IA" para cargar tu clave API sin reiniciar la aplicación.',
     });
   }
 

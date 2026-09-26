@@ -8,6 +8,7 @@ import SSHConnectionManager from './components/SSHConnectionManager';
 import Dashboard from './components/Dashboard';
 import IntelligenceCenter from './components/IntelligenceCenter';
 import AgentOpsStudio from './components/AgentOpsStudio';
+import ApiKeySetupModal from './components/ApiKeySetupModal';
 import { ServerConnection, LinuxProcess, SystemService, DockerContainer, LogLine, LinuxFile, SecurityAsset, AuditLog } from './types';
 import { Terminal, Bot, Radio, Sparkles, Server, LayoutDashboard } from 'lucide-react';
 import { AdaptiveMemory } from './lib/AdaptiveMemory';
@@ -43,6 +44,7 @@ export default function App() {
     authMode: 'apikey' | 'none';
     model: string | null;
   }>({ connected: false, authMode: 'none', model: null });
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   // 1. Initial server pool loading
   const fetchServers = async () => {
@@ -228,6 +230,15 @@ export default function App() {
     return () => clearInterval(statusTimer);
   }, []);
 
+  // Electron's first-run wizard dispatches this event (via executeJavaScript)
+  // when the user picks "Configurar ahora" — opens the same in-app modal the
+  // header button uses, so the whole flow stays in one place.
+  useEffect(() => {
+    const openHandler = () => setShowApiKeyModal(true);
+    window.addEventListener('open-api-key-setup', openHandler);
+    return () => window.removeEventListener('open-api-key-setup', openHandler);
+  }, []);
+
   // 3. Command execution pathway proxy
   const executeServerCommand = async (command: string) => {
     if (!selectedServer) throw new Error('Ningún servidor activo disponible.');
@@ -362,6 +373,12 @@ export default function App() {
             </span>
           )}
           <button
+            onClick={() => setShowApiKeyModal(true)}
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-brand-dark/40 border border-brand-border hover:border-emerald-500/30 rounded-lg text-brand-text-muted hover:text-emerald-300 font-semibold text-[11px] transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Sparkles className="w-3 h-3" /> Configurar IA
+          </button>
+          <button
             onClick={fetchOpenRouterStatus}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs rounded-lg font-semibold whitespace-nowrap"
           >
@@ -445,6 +462,13 @@ export default function App() {
         </div>
 
       </main>
+
+      <ApiKeySetupModal
+        open={showApiKeyModal}
+        currentModel={modelStatus.model}
+        onClose={() => setShowApiKeyModal(false)}
+        onConfigured={fetchOpenRouterStatus}
+      />
     </div>
   );
 }

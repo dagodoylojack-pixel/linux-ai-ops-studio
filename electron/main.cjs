@@ -390,9 +390,20 @@ async function startApp() {
       consoleWindow.close();
     }
 
-    // Show first-run setup wizard if needed
+    // Show first-run setup wizard if needed. This re-fires on every fresh
+    // install/reinstall — see installer.nsi, which resets the marker file
+    // on every install run — not just the very first launch ever.
     if (isFirstRun()) {
-      setTimeout(() => showSetupWizard(mainWindow), 1000);
+      setTimeout(async () => {
+        const wantsSetupNow = await showSetupWizard(mainWindow);
+        if (wantsSetupNow && mainWindow && !mainWindow.isDestroyed()) {
+          // Open the in-app "Configurar IA" modal instead of a text editor —
+          // the renderer listens for this event on window.
+          mainWindow.webContents
+            .executeJavaScript("window.dispatchEvent(new CustomEvent('open-api-key-setup'));")
+            .catch((err) => logToConsole(`No se pudo abrir el asistente de API key: ${err.message}`, 'err'));
+        }
+      }, 1000);
     }
   } else {
     logToConsole('El servidor no respondió a tiempo. Revise los mensajes anteriores.', 'err');

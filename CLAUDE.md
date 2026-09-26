@@ -23,11 +23,9 @@ All server state lives in a single in-memory object `db: ServerStateStore`. This
 
 Server credentials are the only data persisted to disk: they are written to a SQLite file (`.linux_ai_ops.sqlite3` by default) with AES-256-CBC encryption on save/load via `sql.js`.
 
-Command execution has two modes, chosen per-request:
-- **Simulated**: triggered when the server host is a known mock IP (`192.168.1.10`, `192.168.1.12`) or when no credentials are provided. `runSimulatedCommand()` returns canned responses for common Linux commands.
-- **Real SSH**: triggered for any other server with credentials. Uses `ssh2` (`runRealSSHCommand()`).
+Command execution always goes over real SSH (`ssh2`, `runRealSSHCommand()`); a server with no password/private key configured is treated as offline and `/execute` returns 400. There is no simulated command mode (an older mock-IP path some docs mention no longer exists) — the only remaining simulated response is the hardening scan's demo output for credential-less servers.
 
-The AI agent endpoint (`POST /api/openrouter/run-agent`) calls OpenRouter to generate a JSON plan (`{ explanation, riskLevel, steps[], reportSummary }`). If `OPENROUTER_API_KEY` is not set, it falls back to `generateSimulatedAgentAction()`.
+The AI agent endpoint (`POST /api/openrouter/run-agent`) calls OpenRouter to generate a JSON plan (`{ explanation, riskLevel, steps[], reportSummary }`). If `OPENROUTER_API_KEY` is not set, it returns 503 rather than falling back to a simulated plan. The key can be set via the `.env` file or, without restarting, via `POST /api/openrouter/configure` (used by the in-app "Configurar IA" button) — it validates the key against OpenRouter's `/models` endpoint before persisting it and updating the running process's key/model in place.
 
 **Frontend — `src/`**
 
@@ -48,7 +46,7 @@ The AI agent endpoint (`POST /api/openrouter/run-agent`) calls OpenRouter to gen
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENROUTER_API_KEY` | No | Enables real AI. Without it, the app uses simulated responses. |
+| `OPENROUTER_API_KEY` | No | Enables the AI agent. Without it, `/api/openrouter/run-agent` returns 503. Can also be set at runtime via `POST /api/openrouter/configure` (writes to `.env`, no restart needed). |
 | `OPENROUTER_MODEL` | No | Model to use (default: `openrouter/free`) |
 | `OPENROUTER_API_BASE` | No | Override base URL (default: `https://openrouter.ai/api/v1`) |
 | `STORAGE_DB_PATH` | No | SQLite file path (default: `.linux_ai_ops.sqlite3`) |
